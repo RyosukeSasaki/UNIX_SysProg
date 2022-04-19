@@ -28,12 +28,13 @@ typedef enum{
 
 dijkstra_error_t value_check()
 {
-    for(int i=0; i<NNODE; i++) {
-        for(int j=0; j<NNODE; j++) {
+    int i,j;
+    for(i=0; i<NNODE; i++) {
+        for(j=0; j<NNODE; j++) {
             if(cost[i][j]<0 || INF<cost[i][j]) return dijkstra_VALUE_ERR;
         }
     }
-    for(int i=0; i<NNODE; i++) {
+    for(i=0; i<NNODE; i++) {
         if(node_name[i] == 0) return dijkstra_NAME_NOT_ASSIGNED;
     }
     return dijkstra_SUCCEEDED;
@@ -42,7 +43,8 @@ dijkstra_error_t value_check()
 
 bool exist(int* array, int len, int target)
 {
-    for(int i=0; i<len; i++) {
+    int i;
+    for(i=0; i<len; i++) {
         if (array[i] == target) return true;
     }
     return false;
@@ -60,7 +62,8 @@ void add_Nprime(int num)
 }
 void clear_Nprime()
 {
-    for(int i=0; i<NNODE; i++) Nprime[i] = -1;
+    int i;
+    for(i=0; i<NNODE; i++) Nprime[i] = -1;
     iNprime = 0;
 }
 
@@ -68,32 +71,31 @@ void clear_Nprime()
 dijkstra_error_t dijkstra(int root)
 {
     // Initialize
+    int k;
+    int i;
     clear_Nprime();
     add_Nprime(root);
-    for(int i=0; i<NNODE; i++) {D[i] = cost[root][i]; p[i] = root;}
+    for(i=0; i<NNODE; i++) {D[i] = cost[root][i]; p[i] = root;}
     
     // Loop
-    for (int k=0; k<NNODE; k++)
+    for (k=0; k<NNODE; k++)
     {
         bool fin = true;
         int min[2] = {-1, INF}; // index, value
-        for(int i=0; i<NNODE; i++) {
+        for(i=0; i<NNODE; i++) {
             if(exist(Nprime, NNODE, i)) continue;
             if(D[i] < min[1]) {min[0]=i; min[1]=D[i];}
             fin = false;
         }
         if(fin) break;
         add_Nprime(min[0]);
-        //for(int i=0; i<NNODE; i++) printf("%d ", Nprime[i]);
-        //printf("\r\n");
-        for(int i=0; i<NNODE; i++){
+        for(i=0; i<NNODE; i++){
             if(exist(Nprime, NNODE, i)) continue;
             if(D[i] > D[min[0]] + cost[min[0]][i]) {
                 D[i] = D[min[0]] + cost[min[0]][i];
                 p[i] = min[0];
             }
         }
-        //for(int i=0; i<NNODE; i++) printf("%d ", Nprime[i]);
     }
     return dijkstra_SUCCEEDED;
 }
@@ -102,7 +104,8 @@ dijkstra_error_t dijkstra(int root)
 void show_graph(int root)
 {
     printf("root node %c:\r\n\t", node_name[root]);
-    for(int i=0; i<NNODE; i++) {
+    int i;
+    for(i=0; i<NNODE; i++) {
         printf("[%c, %c, %d] ", node_name[i], node_name[p[i]], D[i]);
     }
     printf("\r\n");
@@ -126,7 +129,8 @@ int main()
         break;
     }
 
-    for(int i=0; i<NNODE; i++) {
+    int i;
+    for(i=0; i<NNODE; i++) {
         dijkstra(i);
         show_graph(i);
     }
