@@ -1,5 +1,9 @@
 #include "buffer.h"
 
+buf_header hash_head[HASH_SIZE];
+buf_header freelist;
+static inline int hash(int blkno) { return blkno % HASH_SIZE; }
+
 buf_header* search_hash(int blkno)
 {
     int h;
@@ -68,5 +72,15 @@ bool freelist_is_empty()
     return false;
 }
 
-bool is_locked(buf_header* p) { return p->stat.bits.locked; }
-void set_locked(buf_header* p, bool val) { p->stat.bits.locked = val; }
+int is_locked(buf_header* p) { return p->stat & STAT_LOCKED; }
+int is_valid(buf_header* p) { return p->stat & STAT_VALID; }
+int is_dwr(buf_header* p) { return p->stat & STAT_DWR; }
+int is_krdwr(buf_header* p) { return p->stat & STAT_KRDWR; }
+int is_waited(buf_header* p) { return p->stat & STAT_WAITED; }
+int is_old(buf_header* p) { return p->stat & STAT_OLD; }
+void set_locked(buf_header* p, bool val) { p->stat = val ? p->stat | STAT_LOCKED : p->stat & ~STAT_LOCKED; }
+void set_valid(buf_header* p, bool val) { p->stat = val ? p->stat | STAT_VALID : p->stat & ~STAT_VALID; }
+void set_dwr(buf_header* p, bool val) { p->stat = val ? p->stat | STAT_DWR : p->stat & ~STAT_DWR; }
+void set_krdwr(buf_header* p, bool val) { p->stat = val ? p->stat | STAT_KRDWR : p->stat & ~STAT_KRDWR; }
+void set_waited(buf_header* p, bool val) { p->stat = val ? p->stat | STAT_WAITED : p->stat & ~STAT_WAITED; }
+void set_old(buf_header* p, bool val) { p->stat = val ? p->stat | STAT_OLD : p->stat & ~STAT_OLD; }

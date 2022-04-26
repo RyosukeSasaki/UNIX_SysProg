@@ -10,32 +10,33 @@ void putb(unsigned int v) {
   putchar('0'), putchar('b'), printb(v), putchar('\n');
 }
 
+buf_header bb;
 int main()
 {
-    state_t st;
-    st.bits.locked = true;
-    putb(st.s);
-    st.bits.valid = true;
-    putb(st.s);
-    st.bits.dwr = true;
-    putb(st.s);
-    st.bits.krdwr = true;
-    putb(st.s);
-    st.bits.waited = true;
-    putb(st.s);
-    st.bits.old = true;
-    putb(st.s);
-    st.bits.locked = false;
-    putb(st.s);
-    st.bits.valid = false;
-    putb(st.s);
-    st.bits.dwr = false;
-    putb(st.s);
-    st.bits.krdwr = false;
-    putb(st.s);
-    st.bits.waited = false;
-    putb(st.s);
-    st.bits.old = false;
-    putb(st.s);
+    putb(bb.stat);
+    set_locked(&bb, true);
+    putb(bb.stat);
+    set_valid(&bb, true);
+    putb(bb.stat);
+    set_dwr(&bb, true);
+    putb(bb.stat);
+    set_krdwr(&bb, true);
+    putb(bb.stat);
+    set_waited(&bb, true);
+    putb(bb.stat);
+    set_old(&bb, true);
+    putb(bb.stat);
+    set_locked(&bb, false);
+    putb(bb.stat);
+    set_valid(&bb, false);
+    putb(bb.stat);
+    set_dwr(&bb, false);
+    putb(bb.stat);
+    set_krdwr(&bb, false);
+    putb(bb.stat);
+    set_waited(&bb, false);
+    putb(bb.stat);
+    set_old(&bb, false);
+    putb(bb.stat);
     return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef GETBLK_H
-#define GETBLK_H
+#ifndef _GETBLK_H
+#define _GETBLK_H
 
 #include "buffer.h"
 #include <stdbool.h>
