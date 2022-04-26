@@ -12,7 +12,6 @@ void putb(unsigned int v) {
 
 int main()
 {
-    /*
     state_t st;
     st.bits.locked = true;
     putb(st.s);
@@ -38,6 +37,5 @@ int main()
     putb(st.s);
     st.bits.old = false;
     putb(st.s);
-    /*
     return 0;
 }
