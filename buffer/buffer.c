@@ -29,6 +29,11 @@ void insert_tail(buf_header* h, buf_header* new)
     h->hash_bp = new;
 }
 
+void add_buf_to_hashlist(int blkno, buf_header* new)
+{
+    insert_tail(&hash_head[hash(blkno)], new);
+}
+
 void remove_from_hash(buf_header* p)
 {
     p->hash_bp->hash_fp = p->hash_fp;
@@ -66,7 +71,7 @@ buf_header* get_oldest_buffer()
     return freelist.free_fp;
 }
 
-bool freelist_is_empty()
+bool is_freelist_empty()
 {
     if(freelist.free_fp == &freelist) return true;
     return false;

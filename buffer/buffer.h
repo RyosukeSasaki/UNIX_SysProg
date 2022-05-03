@@ -43,11 +43,12 @@ typedef struct BUF_HEADER{
 buf_header* search_hash(int);
 void insert_head(buf_header*, buf_header*);
 void insert_tail(buf_header*, buf_header*);
+void add_buf_to_hashlist(int, buf_header*);
 void remove_from_hash(buf_header*);
 void insert_freelist_head(buf_header*, buf_header*);
-void insert_freelist_taik(buf_header*, buf_header*);
+void insert_freelist_tail(buf_header*, buf_header*);
 void remove_from_freelist(buf_header*);
-bool freelist_is_empty();
+bool is_freelist_empty();
 buf_header* get_oldest_buffer();
 
 int is_locked(buf_header*);
