@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     if(fstat(fd1, &sb1) < 0) { close(fd1); close(fd2); perror("fstat"); return -1;}
     while(pos < sb1.st_size) {
         readlen = read(fd1, rbuf, sizeof rbuf);
-        if(write(fd2, rbuf, readlen) < 0) { close(fd1); close(fd2); perror("fstat"); return -1;}
+        if(write(fd2, rbuf, readlen) < 0) { close(fd1); close(fd2); perror("write"); return -1;}
         pos += readlen;
     }
     close(fd1); close(fd2);
