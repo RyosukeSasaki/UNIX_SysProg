@@ -16,7 +16,7 @@ struct command_table  cmd_tbl[] = {
     {NULL, NULL}
 };
 
-void init(int *argc, char *argv[]){}
+void init(int *argc, char *argv[]){ _init_buf(); }
 void buf(int *argc, char *argv[]){}
 void hash(int *argc, char *argv[]){}
 void free_func(int *argc, char *argv[]){}
@@ -24,15 +24,8 @@ void getblk(int *argc, char *argv[]){}
 void brelse(int *argc, char *argv[]){}
 void set(int *argc, char *argv[]){}
 void reset(int *argc, char *argv[]){}
-void quit(int *argc, char *argv[])
-{
-    exit(0);
-}
-
-static inline void show_descr(struct command_table *p)
-{
-    printf("\x1b[1m%s\r\n\x1b[0m%s\r\n", p->cmd, p->descr);
-}
+void quit(int *argc, char *argv[]){ exit(0); }
+static inline void show_descr(struct command_table *p){ printf("\x1b[1m%s\r\n\x1b[0m%s\r\n", p->cmd, p->descr); }
 
 void help(int *argc, char *argv[])
 {
@@ -94,7 +87,7 @@ int parse_command()
         }
     }
     if(p->cmd == NULL) {
-        fprintf(stderr, "%s: unknown command", argv[0]);
+        fprintf(stderr, "%s: Unknown command. Please Try help.\r\n", argv[0]);
         return -1;
     }
     return 0;

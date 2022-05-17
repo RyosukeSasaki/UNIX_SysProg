@@ -9,21 +9,21 @@ buf_header* _getblk(int blkno)
             // if blkno in hash queue
             if(is_locked(p)) {
                 // scenario 5
-                printf("scenario 5: block %d is in queue but locked.\r\n", blkno);
-                printf("wait to be unlocked.\r\n");
+                printf("Scenario 5: Block %d is in queue but locked.\r\n", blkno);
+                printf("Wait to be unlocked.\r\n");
                 // sleep()
                 printf("Process goes to sleep\r\n");
                 // continue;
                 return NULL;
             }
-            printf("scenario 1: block %d is in queue and available.\r\n", blkno);
+            printf("Scenario 1: Block %d is in queue and available.\r\n", blkno);
             set_locked(p, true);
             remove_from_freelist(p);
             return p;
         } else {
             if(is_freelist_empty()) {
                 // scenario 4
-                printf("scenario 4: block %d is not in queue, need to be acquired.\r\n", blkno);
+                printf("Scenario 4: Block %d is not in queue, need to be acquired.\r\n", blkno);
                 printf("However, free list is empty, wait any buffer to be released.\r\n");
                 // sleep()
                 printf("Process goes to sleep\r\n");
@@ -34,12 +34,14 @@ buf_header* _getblk(int blkno)
             set_locked(p, true);
             remove_from_freelist(p);
             if(is_dwr(p)) {
-                printf("scenario 3: oldest buffer(blkno: %d) is delayed for write.\r\n", blkno);
-                printf("write buffer to the disk.\r\n");
+                printf("Scenario 3: Oldest buffer(blkno: %d) is delayed for write.\r\n", blkno);
+                printf("Write buffer to the disk.\r\n");
                 continue;
             }
+            printf("Scenario 2: buffer replacement has occured. Block %d will replaced by block %d.", p->blkno, blkno);
             remove_from_hash(p);
             add_buf_to_hashlist(blkno, p);
+            set_valid(p, false);
             return p;
         }
     }

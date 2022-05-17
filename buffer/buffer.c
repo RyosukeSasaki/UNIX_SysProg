@@ -2,7 +2,24 @@
 
 buf_header hash_head[HASH_SIZE];
 buf_header freelist;
+buf_header buffer[BUF_SIZE];
+const int init_blkno[BUF_SIZE] = {28,4,64,17,5,97,98,50,10,3,35,99};
+const int init_free[INIT_FREE] = {3,5,4,28,97,10};
 static inline int hash(int blkno) { return blkno % HASH_SIZE; }
+
+void _init_buf()
+{
+    for(int i=0; i<HASH_SIZE; i++) {
+        hash_head[i].hash_fp = hash_head[i].hash_bp = &hash_head[i];
+    }
+    freelist.free_fp = freelist.free_bp = &freelist;
+    for(int i=0; i<BUF_SIZE; i++) {
+        add_buf_to_hashlist(init_blkno[i], &buffer[i]);
+    }
+    for(int i=0; i<INIT_FREE; i++) {
+        insert_freelist_tail(search_hash(init_free[i]));
+    }
+}
 
 buf_header* search_hash(int blkno)
 {
@@ -31,6 +48,7 @@ void insert_tail(buf_header* h, buf_header* new)
 
 void add_buf_to_hashlist(int blkno, buf_header* new)
 {
+    new->blkno = blkno;
     insert_tail(&hash_head[hash(blkno)], new);
 }
 

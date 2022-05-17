@@ -13,6 +13,8 @@
 #define STAT_OLD        0b100000
 
 #define HASH_SIZE 4
+#define BUF_SIZE 12
+#define INIT_FREE 6
 
 /*
 struct _buf_state{
@@ -41,6 +43,7 @@ typedef struct BUF_HEADER{
 } buf_header;
 
 buf_header* search_hash(int);
+void _init_buf();
 void insert_head(buf_header*, buf_header*);
 void insert_tail(buf_header*, buf_header*);
 void add_buf_to_hashlist(int, buf_header*);
@@ -63,5 +66,6 @@ void set_dwr(buf_header*, bool);
 void set_krdwr(buf_header*, bool);
 void set_waited(buf_header*, bool);
 void set_old(buf_header*, bool);
+void set_stat(buf_header*, uint8_t);
 
 #endif
