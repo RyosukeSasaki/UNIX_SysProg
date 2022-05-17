@@ -2,5 +2,8 @@
 
 int main()
 {
-    parse_command();
+    while (1) {
+        parse_command();
+
+    }
 }

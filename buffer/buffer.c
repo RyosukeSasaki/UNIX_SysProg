@@ -42,20 +42,20 @@ void remove_from_hash(buf_header* p)
     p->hash_bp = NULL;
 }
 
-void insert_freelist_head(buf_header* h, buf_header* new)
+void insert_freelist_head(buf_header* new)
 {
-    new->free_bp = h;
-    new->free_bp = h->free_fp;
-    h->free_fp->free_bp = new;
-    h->free_fp = new;
+    new->free_bp = &freelist;
+    new->free_bp = freelist.free_fp;
+    freelist.free_fp->free_bp = new;
+    freelist.free_fp = new;
 }
 
-void insert_freelist_tail(buf_header* h, buf_header* new)
+void insert_freelist_tail(buf_header* new)
 {
-    new->free_bp = h->free_bp;
-    new->free_fp = h;
-    h->free_bp->free_fp = new;
-    h->free_bp = new;
+    new->free_bp = freelist.free_bp;
+    new->free_fp = &freelist;
+    freelist.free_bp->free_fp = new;
+    freelist.free_bp = new;
 }
 
 void remove_from_freelist(buf_header* p)

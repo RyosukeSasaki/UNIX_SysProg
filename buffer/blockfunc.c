@@ -1,13 +1,4 @@
-#ifndef _GETBLK_H
-#define _GETBLK_H
-
-#include "buffer.h"
-#include <stdbool.h>
-
-void getblk(int argc, char* argv[])
-{
-    fprintf(stderr, "fuckoff");
-}
+#include "blockfunc.h"
 
 buf_header* _getblk(int blkno)
 {
@@ -54,4 +45,20 @@ buf_header* _getblk(int blkno)
     }
 }
 
-#endif
+void _brelse(buf_header* buf)
+{
+    // wakeup()
+    printf("Wakeup Processes waiting for any buffer\r\n");
+    if(is_waited(buf)) {
+        // wakeup()
+        printf("Wakeup processes waiting for the buffer of blkno %d\r\n", buf->blkno);
+    }
+    // raise_cpu_level();
+    if(is_valid(buf) && !is_old(buf)) {
+        insert_freelist_tail(buf);
+    } else {
+        insert_freelist_head(buf);
+    }
+    // lower_cpu_level();
+    set_locked(buf, false);
+}
