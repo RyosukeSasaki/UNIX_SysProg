@@ -33,6 +33,7 @@ typedef union _state_t{
 */
 
 typedef struct BUF_HEADER{
+    int buf_number;
     int blkno;
     char* cache_data;
     struct BUF_HEADER* hash_fp;
@@ -42,8 +43,9 @@ typedef struct BUF_HEADER{
     struct BUF_HEADER* free_bp;
 } buf_header;
 
+extern bool initialized;
 buf_header* search_hash(int);
-void _init_buf();
+void init_buf();
 void insert_head(buf_header*, buf_header*);
 void insert_tail(buf_header*, buf_header*);
 void add_buf_to_hashlist(int, buf_header*);
@@ -67,5 +69,8 @@ void set_krdwr(buf_header*, bool);
 void set_waited(buf_header*, bool);
 void set_old(buf_header*, bool);
 void set_stat(buf_header*, uint8_t);
+
+void buf_stat(buf_header*, char*);
+void show_buffer(int);
 
 #endif

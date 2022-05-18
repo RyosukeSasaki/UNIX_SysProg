@@ -16,8 +16,29 @@ struct command_table  cmd_tbl[] = {
     {NULL, NULL}
 };
 
-void init(int *argc, char *argv[]){ _init_buf(); }
-void buf(int *argc, char *argv[]){}
+void init(int *argc, char *argv[]) { init_buf(); }
+void buf(int *argc, char *argv[])
+{
+    if(*argc == 1) {
+        for(int i=0; i<BUF_SIZE; i++) { show_buffer(i); printf("\r\n"); }
+    } else {
+        long ln;
+        int n;
+        char *end_ptr;
+        for(int i=1; i<*argc; i++) {
+            ln = strtol(argv[i], &end_ptr, 10);
+            n = (int)ln;
+            if(end_ptr == argv[i] || ln > INT_MAX || ln < INT_MIN) {
+                fprintf(stderr, "Conversion error of argument %s\r\n", argv[i]);
+            } else if(n > BUF_SIZE || n < 0) {
+                printf("Buffer %d does not exist\r\n", n);
+            } else {
+                show_buffer(n);
+                printf("\r\n");
+            }
+        }
+    }
+}
 void hash(int *argc, char *argv[]){}
 void free_func(int *argc, char *argv[]){}
 void getblk(int *argc, char *argv[]){}
@@ -25,7 +46,7 @@ void brelse(int *argc, char *argv[]){}
 void set(int *argc, char *argv[]){}
 void reset(int *argc, char *argv[]){}
 void quit(int *argc, char *argv[]){ exit(0); }
-static inline void show_descr(struct command_table *p){ printf("\x1b[1m%s\r\n\x1b[0m%s\r\n", p->cmd, p->descr); }
+static inline void show_descr(struct command_table *p) { printf("\x1b[1m%s\r\n\x1b[0m%s\r\n", p->cmd, p->descr); }
 
 void help(int *argc, char *argv[])
 {
