@@ -19,6 +19,10 @@ struct command_table  cmd_tbl[] = {
 void init(int *argc, char *argv[]) { init_buf(); }
 void buf(int *argc, char *argv[])
 {
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
     if(*argc == 1) {
         for(int i=0; i<BUF_SIZE; i++) { show_buffer(i); printf("\r\n"); }
     } else {
@@ -39,8 +43,13 @@ void buf(int *argc, char *argv[])
         }
     }
 }
+
 void hash(int *argc, char *argv[])
 {
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
     if(*argc == 1) {
         for(int i=0; i<HASH_SIZE; i++) {
             show_hash(i);
@@ -62,6 +71,7 @@ void hash(int *argc, char *argv[])
         }
     }
 }
+
 void free_func(int *argc, char *argv[]){}
 void getblk(int *argc, char *argv[]){}
 void brelse(int *argc, char *argv[]){}
