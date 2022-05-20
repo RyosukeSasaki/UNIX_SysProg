@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include "blockfunc.h"
+#include "buffer.h"
 
 void init(int*, char *[]);
 void help(int*, char *[]);
@@ -28,5 +29,11 @@ struct command_table {
     void (*func)(int*, char* []);
     char* descr;
 };
+
+struct stat_func_table {
+    char* cmd;
+    void (*func)(buf_header*, bool);
+};
+
 
 #endif

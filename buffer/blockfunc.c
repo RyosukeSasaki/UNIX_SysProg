@@ -34,11 +34,11 @@ buf_header* _getblk(int blkno)
             set_locked(p, true);
             remove_from_freelist(p);
             if(is_dwr(p)) {
-                printf("Scenario 3: Oldest buffer(blkno: %d) is delayed for write.\r\n", blkno);
+                printf("Scenario 3: Oldest buffer(blkno: %d) is delayed for write.\r\n", p->blkno);
                 printf("Write buffer to the disk.\r\n");
                 continue;
             }
-            printf("Scenario 2: buffer replacement has occured. Block %d will replaced by block %d.", p->blkno, blkno);
+            printf("Scenario 2: buffer replacement has occured. Block %d will replaced by block %d.\r\n", p->blkno, blkno);
             remove_from_hash(p);
             add_buf_to_hashlist(blkno, p);
             set_valid(p, false);
@@ -47,20 +47,53 @@ buf_header* _getblk(int blkno)
     }
 }
 
-void _brelse(buf_header* buf)
+void _brelse(int blkno)
 {
+    buf_header *buf;
+    buf = search_hash(blkno);
+    if(buf == NULL) {
+        fprintf(stderr, "Buffer %d is not in queue.\r\n", blkno);
+        return;
+    }
+    if(!is_locked(buf)) {
+        fprintf(stderr, "Buffer %d is not locked. Nothing done.\r\n", blkno);
+        return;
+    }
     // wakeup()
     printf("Wakeup Processes waiting for any buffer\r\n");
     if(is_waited(buf)) {
         // wakeup()
-        printf("Wakeup processes waiting for the buffer of blkno %d\r\n", buf->blkno);
+        printf("Wakeup processes waiting for the buffer of blkno %d\r\n", blkno);
     }
     // raise_cpu_level();
     if(is_valid(buf) && !is_old(buf)) {
         insert_freelist_tail(buf);
     } else {
         insert_freelist_head(buf);
+        set_old(buf, false);
     }
     // lower_cpu_level();
     set_locked(buf, false);
+}
+
+void _set_stat(int blkno, void (*func)(buf_header*, bool))
+{
+    buf_header *buf;
+    buf = search_hash(blkno);
+    if(buf == NULL) {
+        fprintf(stderr, "Buffer %d is not in queue.\r\n", blkno);
+        return;
+    }
+    (*func)(buf, true);
+}
+
+void _reset_stat(int blkno, void (*func)(buf_header*, bool))
+{
+    buf_header *buf;
+    buf = search_hash(blkno);
+    if(buf == NULL) {
+        fprintf(stderr, "Buffer %d is not in queue.\r\n", blkno);
+        return;
+    }
+    (*func)(buf, false);
 }

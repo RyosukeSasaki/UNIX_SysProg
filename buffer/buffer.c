@@ -17,6 +17,7 @@ void init_buf()
     freelist.free_fp = freelist.free_bp = &freelist;
     for(int i=0; i<BUF_SIZE; i++) {
         add_buf_to_hashlist(init_blkno[i], &buffer[i]);
+        set_stat(&buffer[i], 0);
         set_valid(&buffer[i], true);
         set_locked(&buffer[i], true);
         buffer[i].buf_number = i;
@@ -115,6 +116,7 @@ void set_dwr(buf_header *p, bool val) { p->stat = val ? p->stat | STAT_DWR : p->
 void set_krdwr(buf_header *p, bool val) { p->stat = val ? p->stat | STAT_KRDWR : p->stat & ~STAT_KRDWR; }
 void set_waited(buf_header *p, bool val) { p->stat = val ? p->stat | STAT_WAITED : p->stat & ~STAT_WAITED; }
 void set_old(buf_header *p, bool val) { p->stat = val ? p->stat | STAT_OLD : p->stat & ~STAT_OLD; }
+void set_stat(buf_header *p, uint8_t val) { p->stat = val; }
 
 void buf_stat(buf_header *p, char *stat_str)
 {
@@ -140,6 +142,16 @@ void show_hash(int hash_number)
     buf_header *p;
     printf("%d: ", hash_number);
     for(p=hash_head[hash_number].hash_fp; p!=&hash_head[hash_number]; p=p->hash_fp) {
+        show_buffer(p->buf_number);
+        printf(" ");
+    }
+    printf("\r\n");
+}
+
+void show_free()
+{
+    buf_header *p;
+    for(p=freelist.free_fp; p!=&freelist; p=p->free_fp) {
         show_buffer(p->buf_number);
         printf(" ");
     }

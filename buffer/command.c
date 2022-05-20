@@ -11,12 +11,23 @@ struct command_table  cmd_tbl[] = {
     {"free", free_func, "Show the free list.\r\n"},
     {"getblk", getblk, "usage: getblk n\r\nExcute getblk(n).\r\n"},
     {"brelse", brelse, "usage: brelse n\r\nExcute brelse(bp) where bp is pointer to buffer which blkno is n.\r\n"},
-    {"set", set, "usage: set n stat [stat ...]\r\nSet stat on the buffer which blkno is n.\r\n"},
-    {"reset", reset, "usage: reset n stat [stat ...]\r\nUnset stat on the buffer which blkno is n.\r\n"},
+    {"set", set, "usage: set n stat [stat ...]\r\nstat: L(Locked), V(Valid), D(Delayed write), K(Kernel read/write), W(Waited), O(Old)\r\nSet stat on the buffer which blkno is n.\r\n"},
+    {"reset", reset, "usage: reset n stat [stat ...]\r\nstat: L(Locked), V(Valid), D(Delayed write), K(Kernel read/write), W(Waited), O(Old)\r\nUnset stat on the buffer which blkno is n.\r\n"},
+    {NULL, NULL}
+};
+
+struct stat_func_table stat_tbl[] = {
+    {"L", set_locked},
+    {"V", set_valid},
+    {"D", set_dwr},
+    {"K", set_krdwr},
+    {"W", set_waited},
+    {"O", set_old},
     {NULL, NULL}
 };
 
 void init(int *argc, char *argv[]) { init_buf(); }
+void quit(int *argc, char *argv[]){ exit(0); }
 void buf(int *argc, char *argv[])
 {
     if(!initialized) {
@@ -72,14 +83,139 @@ void hash(int *argc, char *argv[])
     }
 }
 
-void free_func(int *argc, char *argv[]){}
-void getblk(int *argc, char *argv[]){}
-void brelse(int *argc, char *argv[]){}
-void set(int *argc, char *argv[]){}
-void reset(int *argc, char *argv[]){}
-void quit(int *argc, char *argv[]){ exit(0); }
-static inline void show_descr(struct command_table *p) { printf("\x1b[1m%s\r\n\x1b[0m%s\r\n", p->cmd, p->descr); }
+void free_func(int *argc, char *argv[])
+{
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
+    show_free();
+}
 
+void getblk(int *argc, char *argv[])
+{
+    buf_header *ret;
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
+    if(*argc != 2) {
+        printf("getblk needs exact 1 argument.\r\n");
+    } else {
+        long ln;
+        int n;
+        char *end_ptr;
+        ln = strtol(argv[1], &end_ptr, 10);
+        n = (int)ln;
+        if(end_ptr == argv[1] || ln > INT_MAX || ln < INT_MIN) {
+            fprintf(stderr, "Conversion error of argument %s\r\n", argv[1]);
+        } else if(n < 0) {
+            fprintf(stderr, "Blkno must be positive\r\n");
+        } else {
+            ret = _getblk(n);
+        }
+    }
+}
+
+void brelse(int *argc, char *argv[])
+{
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
+    if(*argc != 2) {
+        printf("brelse needs exact 1 argument.\r\n");
+    } else {
+        long ln;
+        int n;
+        char *end_ptr;
+        ln = strtol(argv[1], &end_ptr, 10);
+        n = (int)ln;
+        if(end_ptr == argv[1] || ln > INT_MAX || ln < INT_MIN) {
+            fprintf(stderr, "Conversion error of argument %s\r\n", argv[1]);
+        } else if(n < 0) {
+            fprintf(stderr, "Blkno must be positive\r\n");
+        } else {
+            _brelse(n);
+        }
+    }   
+}
+
+void set(int *argc, char *argv[])
+{
+    struct stat_func_table *p;
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
+    if(*argc < 3) {
+        printf("set needs at least 2 arguments.\r\n");
+    } else {
+        long ln;
+        int n;
+        char *end_ptr;
+        ln = strtol(argv[1], &end_ptr, 10);
+        n = (int)ln;
+        if(end_ptr == argv[1] || ln > INT_MAX || ln < INT_MIN) {
+            fprintf(stderr, "Conversion error of argument %s\r\n", argv[1]);
+            return;
+        } else if(n < 0) {
+            fprintf(stderr, "Blkno must be positive\r\n");
+            return;
+        }
+        for(int i=2; i<*argc; i++) {
+            for(p = stat_tbl; p->cmd; p++) {
+                if(strcmp(argv[i], p->cmd) == 0) {
+                    _set_stat(n, p->func);
+                    break;
+                }
+            }
+            if(p->cmd == NULL) {
+                fprintf(stderr, "Stat %s is not defined.\r\n", argv[i]);
+                return;
+            }
+        }
+    }
+}
+
+void reset(int *argc, char *argv[])
+{
+    struct stat_func_table *p;
+    if(!initialized) {
+        fprintf(stderr, "Buffers haven't initialized, please run init first.\r\n");
+        return;
+    }
+    if(*argc < 3) {
+        printf("set needs at least 2 arguments.\r\n");
+    } else {
+        long ln;
+        int n;
+        char *end_ptr;
+        ln = strtol(argv[1], &end_ptr, 10);
+        n = (int)ln;
+        if(end_ptr == argv[1] || ln > INT_MAX || ln < INT_MIN) {
+            fprintf(stderr, "Conversion error of argument %s\r\n", argv[1]);
+            return;
+        } else if(n < 0) {
+            fprintf(stderr, "Blkno must be positive\r\n");
+            return;
+        }
+        for(int i=2; i<*argc; i++) {
+            for(p = stat_tbl; p->cmd; p++) {
+                if(strcmp(argv[i], p->cmd) == 0) {
+                    _reset_stat(n, p->func);
+                    break;
+                }
+            }
+            if(p->cmd == NULL) {
+                fprintf(stderr, "Stat %s is not defined.\r\n", argv[i]);
+                return;
+            }
+        }
+    }
+}
+
+static inline void show_descr(struct command_table *p) { printf("\x1b[1m%s\r\n\x1b[0m%s\r\n", p->cmd, p->descr); }
 void help(int *argc, char *argv[])
 {
     struct command_table* p;
@@ -114,7 +250,9 @@ void getargs(int *argc, char *argv[], char *lbuf)
         argv[(*argc)++] = lbuf;
 
         while(*lbuf && !isblank(*lbuf)) lbuf++;
-        if(*lbuf == '\0') return;
+        if(*lbuf == '\0') {
+            return;
+        }
         *lbuf++ = '\0';
     }
 }
