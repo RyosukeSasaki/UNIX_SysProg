@@ -69,6 +69,7 @@ void _brelse(int blkno)
     if(is_waited(buf)) {
         // wakeup()
         printf("Scenario5: Wakeup processes waiting for the buffer of blkno %d\r\n", blkno);
+        set_waited(buf, false);
     }
     // raise_cpu_level();
     if(is_valid(buf) && !is_old(buf)) {
