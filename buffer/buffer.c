@@ -70,7 +70,7 @@ void insert_freelist_head(buf_header* new)
 {
     set_locked(new, false);
     new->free_bp = &freelist;
-    new->free_bp = freelist.free_fp;
+    new->free_fp = freelist.free_fp;
     freelist.free_fp->free_bp = new;
     freelist.free_fp = new;
 }

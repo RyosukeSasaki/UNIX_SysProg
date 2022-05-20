@@ -11,6 +11,7 @@ buf_header* _getblk(int blkno)
                 // scenario 5
                 printf("Scenario 5: Block %d is in queue but locked.\r\n", blkno);
                 printf("Wait to be unlocked.\r\n");
+                set_waited(p, true);
                 // sleep()
                 printf("Process goes to sleep\r\n");
                 // continue;
@@ -36,6 +37,8 @@ buf_header* _getblk(int blkno)
             if(is_dwr(p)) {
                 printf("Scenario 3: Oldest buffer(blkno: %d) is delayed for write.\r\n", p->blkno);
                 printf("Write buffer to the disk.\r\n");
+                //set_old(p, true);
+                //set_dwr(p, false);
                 continue;
             }
             printf("Scenario 2: buffer replacement has occured. Block %d will replaced by block %d.\r\n", p->blkno, blkno);
@@ -59,18 +62,23 @@ void _brelse(int blkno)
         fprintf(stderr, "Buffer %d is not locked. Nothing done.\r\n", blkno);
         return;
     }
-    // wakeup()
-    printf("Wakeup Processes waiting for any buffer\r\n");
+    if(is_freelist_empty()) {
+        // wakeup()
+        printf("Scenario4: Wakeup Processes waiting for any buffer\r\n");
+    }
     if(is_waited(buf)) {
         // wakeup()
-        printf("Wakeup processes waiting for the buffer of blkno %d\r\n", blkno);
+        printf("Scenario5: Wakeup processes waiting for the buffer of blkno %d\r\n", blkno);
     }
     // raise_cpu_level();
     if(is_valid(buf) && !is_old(buf)) {
         insert_freelist_tail(buf);
-    } else {
+    } else if(is_valid(buf) && is_old(buf)) {
         insert_freelist_head(buf);
         set_old(buf, false);
+    } else {
+        fprintf(stderr, "Buffer state is invalid.\r\n");
+        return;
     }
     // lower_cpu_level();
     set_locked(buf, false);

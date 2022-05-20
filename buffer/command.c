@@ -223,7 +223,7 @@ void help(int *argc, char *argv[])
         for(p = cmd_tbl; p->cmd; p++) {
             show_descr(p);
         }
-    } else if(*argc == 2) {
+    } else if(*argc == 2) { 
         for(p = cmd_tbl; p->cmd; p++) {
             if(strcmp(argv[1], p->cmd) == 0) {
                 show_descr(p);
@@ -270,6 +270,7 @@ int parse_command()
     }
     lbuf[strlen(lbuf) - 1] = '\0';
     getargs(&argc, argv, lbuf);
+    if(argc < 1) return 0;
 
     for(p = cmd_tbl; p->cmd; p++) {
         if(strcmp(argv[0], p->cmd) == 0) {
