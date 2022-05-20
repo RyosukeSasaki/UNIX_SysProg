@@ -39,7 +39,29 @@ void buf(int *argc, char *argv[])
         }
     }
 }
-void hash(int *argc, char *argv[]){}
+void hash(int *argc, char *argv[])
+{
+    if(*argc == 1) {
+        for(int i=0; i<HASH_SIZE; i++) {
+            show_hash(i);
+        }
+    } else {
+        long ln;
+        int n;
+        char *end_ptr;
+        for(int i=1; i<*argc; i++) {
+            ln = strtol(argv[i], &end_ptr, 10);
+            n = (int)ln;
+            if(end_ptr == argv[i] || ln > INT_MAX || ln < INT_MIN) {
+                fprintf(stderr, "Conversion error of argument %s\r\n", argv[i]);
+            } else if(n > HASH_SIZE || n < 0) {
+                printf("Buffer %d does not exist\r\n", n);
+            } else {
+                show_hash(n);
+            }
+        }
+    }
+}
 void free_func(int *argc, char *argv[]){}
 void getblk(int *argc, char *argv[]){}
 void brelse(int *argc, char *argv[]){}

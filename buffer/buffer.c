@@ -18,6 +18,7 @@ void init_buf()
     for(int i=0; i<BUF_SIZE; i++) {
         add_buf_to_hashlist(init_blkno[i], &buffer[i]);
         set_valid(&buffer[i], true);
+        set_locked(&buffer[i], true);
         buffer[i].buf_number = i;
     }
     for(int i=0; i<INIT_FREE; i++) {
@@ -66,7 +67,7 @@ void remove_from_hash(buf_header *p)
 
 void insert_freelist_head(buf_header* new)
 {
-    set_locked(new, true);
+    set_locked(new, false);
     new->free_bp = &freelist;
     new->free_bp = freelist.free_fp;
     freelist.free_fp->free_bp = new;
@@ -75,7 +76,7 @@ void insert_freelist_head(buf_header* new)
 
 void insert_freelist_tail(buf_header* new)
 {
-    set_locked(new, true);
+    set_locked(new, false);
     new->free_bp = freelist.free_bp;
     new->free_fp = &freelist;
     freelist.free_bp->free_fp = new;
@@ -84,7 +85,7 @@ void insert_freelist_tail(buf_header* new)
 
 void remove_from_freelist(buf_header *p)
 {
-    set_locked(p, false);
+    set_locked(p, true);
     p->free_bp->free_fp = p->free_fp;
     p->free_fp->free_bp = p->free_bp;
     p->free_fp = NULL;
@@ -126,9 +127,21 @@ void buf_stat(buf_header *p, char *stat_str)
     is_locked(p)    ? 'L':'-');
 }
 
-void show_buffer(int buf_number) {
+void show_buffer(int buf_number)
+{
     char stat_str[7];
     buf_header *p = &buffer[buf_number];
     buf_stat(p, stat_str);
     printf("[ %2d: %2d %s]", p->buf_number, p->blkno, stat_str);
+}
+
+void show_hash(int hash_number)
+{
+    buf_header *p;
+    printf("%d: ", hash_number);
+    for(p=hash_head[hash_number].hash_fp; p!=&hash_head[hash_number]; p=p->hash_fp) {
+        show_buffer(p->buf_number);
+        printf(" ");
+    }
+    printf("\r\n");
 }

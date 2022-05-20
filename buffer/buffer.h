@@ -72,5 +72,6 @@ void set_stat(buf_header*, uint8_t);
 
 void buf_stat(buf_header*, char*);
 void show_buffer(int);
+void show_hash(int);
 
 #endif
