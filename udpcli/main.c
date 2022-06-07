@@ -21,7 +21,7 @@ int main()
     }
 
     memset(&skt, 0, sizeof skt);
-    inet_aton("131.113.110.100", &ipaddr);
+    inet_aton("localhost", &ipaddr);
     skt.sin_family = AF_INET;
     skt.sin_port = htons(port);
     skt.sin_addr.s_addr = htonl(ipaddr.s_addr);
