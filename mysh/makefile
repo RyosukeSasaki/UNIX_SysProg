@@ -1,0 +1,16 @@
+SRCS = main.c parseline.c
+OBJS = $(SRCS:%.c=%.o)
+DEPS = $(SRCS:%.c=%.d)
+PROG = mysh
+CFLAGS := -std=c99
+
+main: $(OBJS)
+	gcc $(CFLAGS) $(OBJS) -o $(PROG)
+
+.c.o:
+	gcc $(CFLAGS) -MD -MP -c $<
+
+clean:
+	rm $(PROG) $(OBJS) $(DEPS)
+
+-include $(DEPS)
