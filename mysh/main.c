@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include "parseline.h"
 #include "mysh_types.h"
-#define TOKEN_LEN 256
-#define TOKEN_MAX 256
-#define NARGS 64
 
 int main()
 {

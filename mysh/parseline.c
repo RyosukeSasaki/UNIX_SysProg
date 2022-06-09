@@ -20,19 +20,31 @@ int gettoken(char *tkn, int *len, int max)
     while (isblank(ret)) ret=getc(stdin);
     if (ret == '>') {
         if ((ret=getc(stdin)) == '>') return TKN_REDIR_APPEND;
-        if (ungetc(ret, stdin) == EOF) return TKN_ERR;
+        if (ungetc(ret, stdin) == EOF) {
+            perror("ungetc");
+            return TKN_ERR;
+        }
         return TKN_REDIR_OUT;
     }
     for (p=tkn_tbl; p->token; p++) {
         if (ret == p->token) return p->type;
     }
-    if (ungetc(ret, stdin) == EOF) return TKN_ERR;
+    if (ungetc(ret, stdin) == EOF) {
+        perror("ungetc");
+        return TKN_ERR;
+    }
     while (1) {
-        if (*len >= max) return TKN_ERR;
+        if (*len >= max) {
+            fprintf(stderr, "Error: token is too long\r\n");
+            return TKN_ERR;
+        }
         ret = getc(stdin);
         for (p=tkn_tbl; p->token; p++) {
             if (p->token == ret) {
-                if (ungetc(ret, stdin) == EOF) return TKN_ERR;
+                if (ungetc(ret, stdin) == EOF) {
+                    perror("ungetc");
+                    return TKN_ERR;
+                }
                 return TKN_NORMAL;
             }
         }

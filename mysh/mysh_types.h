@@ -1,4 +1,7 @@
 #pragma once
+#define TOKEN_LEN 256
+#define TOKEN_MAX 256
+#define NARGS 64
 
 enum TKN_TYPES
 {
@@ -16,4 +19,10 @@ enum TKN_TYPES
 struct token_table {
     int token;
     enum TKN_TYPES type;
+};
+
+struct token_block {
+    enum TKN_TYPES type;
+    int argc;
+    char *argv[NARGS];
 };
