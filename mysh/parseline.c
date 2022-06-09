@@ -11,7 +11,7 @@ struct token_table tkn_tbl[] = {
     {0, 0}
 };
 
-int gettoken(char *tkn, int *len)
+int gettoken(char *tkn, int *len, int max)
 {
     *len = 0;
     int ret = ' ';
@@ -28,6 +28,7 @@ int gettoken(char *tkn, int *len)
     }
     if (ungetc(ret, stdin) == EOF) return TKN_ERR;
     while (1) {
+        if (*len >= max) return TKN_ERR;
         ret = getc(stdin);
         for (p=tkn_tbl; p->token; p++) {
             if (p->token == ret) {

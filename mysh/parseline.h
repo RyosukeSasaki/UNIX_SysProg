@@ -5,5 +5,5 @@
 #include <ctype.h>
 #include "mysh_types.h"
 
-int gettoken(char*, int*);
+int gettoken(char*, int*, int);
 void getargs(int*, char *[], char*);
