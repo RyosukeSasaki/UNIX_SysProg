@@ -22,7 +22,13 @@ struct token_table {
 };
 
 struct token_block {
-    enum TKN_TYPES type;
+    int type;
     int argc;
+    char buf[TOKEN_LEN];
     char *argv[NARGS];
+};
+
+struct line {
+    int nblock;
+    struct token_block blocks[TOKEN_MAX];
 };

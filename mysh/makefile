@@ -1,4 +1,4 @@
-SRCS = main.c parseline.c
+SRCS = main.c parseline.c execline.c
 OBJS = $(SRCS:%.c=%.o)
 DEPS = $(SRCS:%.c=%.d)
 PROG = mysh
@@ -12,5 +12,7 @@ main: $(OBJS)
 
 clean:
 	rm $(PROG) $(OBJS) $(DEPS)
+
+test: main clean
 
 -include $(DEPS)
