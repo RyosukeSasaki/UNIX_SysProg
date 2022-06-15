@@ -20,47 +20,33 @@ void read_command()
     struct line command_line;
     while (1) {
         fprintf(stderr, "mysh $ ");
-        while (1) {
-            if (i == TOKEN_MAX) {
-                fprintf(stderr, "Too many tokens given.\r\n");
-                i = 0;
-                break;
+        do {
+            while (1) {
+                if (i == TOKEN_MAX) {
+                    fprintf(stderr, "Too many tokens given.\r\n");
+                    i = 0;
+                    break;
+                }
+                argc = &command_line.blocks[i].argc;
+                argv = command_line.blocks[i].argv;
+                type = &command_line.blocks[i].type;
+                line_buf = command_line.blocks[i].buf;
+                *type = gettoken(line_buf, &len, TOKEN_LEN);
+                line_buf[len] = '\0';
+                getargs(argc, argv, line_buf);
+                command_line.nblock = ++i;
+                if (*type >= TKN_EOL) {
+                    break;
+                } else if (*type == TKN_ERR) {
+                    fprintf(stderr, "Error on parsing line.\r\n");
+                    break;
+                }
             }
-            argc = &command_line.blocks[i].argc;
-            argv = command_line.blocks[i].argv;
-            type = &command_line.blocks[i].type;
-            line_buf = command_line.blocks[i].buf;
-            //type[i] = gettoken(token[i], &len, TOKEN_LEN);
-            //token[i][len] = '\0';
-            //getargs(&argc[i], argv[i], token[i]);
-            *type = gettoken(line_buf, &len, TOKEN_LEN);
-            line_buf[len] = '\0';
-            if (*type >= TKN_EOL) {
-                break;
-            } else if (*type == TKN_ERR) {
-                fprintf(stderr, "Error on parsing line.\r\n");
-                break;
-            }
-            getargs(argc, argv, line_buf);
-            command_line.nblock = ++i;
-        }
+            type = &command_line.blocks[--i-1].type;
 
-        // print
-        for (int j=0; j<=command_line.nblock; j++) {
-            printf("token %d type %d include %d args: \r\n", j, command_line.blocks[j].type,
-            command_line.blocks[j].argc);
-            for (int k=0; k<command_line.blocks[j].argc; k++) {
-                printf("\targ %d: %s\r\n", k, command_line.blocks[j].argv[k]);
-            }
-        }
-
-        // if line end
-        type = &command_line.blocks[i-1].type;
-        printf("last type %d\r\n", *type);
-        if (*type < TKN_REDIR_IN || TKN_PIPE < *type) {
-            i=0;
-            if (execute(&command_line) < 0) fprintf(stderr, "Execution Error\r\n");
-        }
+        } while (TKN_REDIR_IN <= *type && *type <= TKN_PIPE);
+        i=0;
+        if (execute(&command_line) < 0) fprintf(stderr, "execution Error\r\n");
     }
 }
 
@@ -119,7 +105,7 @@ void getargs(int *argc, char *argv[], char *lbuf)
 
         while(*lbuf && !isblank(*lbuf)) lbuf++;
         if(*lbuf == '\0') {
-            //argv[(*argc)+1] = NULL;
+            argv[(*argc)] = NULL;
             return;
         }
         *lbuf++ = '\0';

@@ -3,10 +3,20 @@
 #define TOKEN_MAX 256
 #define NARGS 64
 
-enum TKN_TYPES
-{
+/*
+ * uncomment a line below to show debug message
+ */
+#define DEBUG
+#ifdef DEBUG
+#define debug(...) { fprintf(__VA_ARGS__); }
+#else
+#define debug 1 ? (void) 0 : fprintf
+#endif
+
+enum TKN_TYPES {
     TKN_ERR=0,
     TKN_NORMAL=1,
+    TKN_DIR,
     TKN_REDIR_IN,
     TKN_REDIR_OUT,
     TKN_REDIR_APPEND,
@@ -24,8 +34,10 @@ struct token_table {
 struct token_block {
     int type;
     int argc;
+    int redir;
     char buf[TOKEN_LEN];
     char *argv[NARGS];
+    char *dir;
 };
 
 struct line {

@@ -2,7 +2,7 @@ SRCS = main.c parseline.c execline.c
 OBJS = $(SRCS:%.c=%.o)
 DEPS = $(SRCS:%.c=%.d)
 PROG = mysh
-CFLAGS := -std=c99
+CFLAGS := -std=gnu99
 
 main: $(OBJS)
 	gcc $(CFLAGS) $(OBJS) -o $(PROG)
