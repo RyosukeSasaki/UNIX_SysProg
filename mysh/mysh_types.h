@@ -14,12 +14,13 @@
 #define debug 1 ? (void) 0 : fprintf
 #endif
 
-enum MYSH_ERR {
+enum MYSH_ERR_T {
     MYSH_OK=0,
     MYSH_PARSE_ERR=-1,
     MYSH_EXEC_ERR=-2,
     MYSH_ALLOC_ERR=-3,
-    MYSH_FILE_ERR=-4
+    MYSH_FILE_ERR=-4,
+    MYSH_ERR=-5
 };
 
 enum TKN_TYPES {

@@ -15,7 +15,10 @@ void main()
         perror("sigaction");
         exit(0);
     }
-    
+    if (sigaction(SIGTTOU, &sa_sigint, NULL) < 0) {
+        perror("sigaction");
+        exit(0);
+    }
     /*
     pid_t sid, pid;
     if ((sid=setsid()) < 0) {

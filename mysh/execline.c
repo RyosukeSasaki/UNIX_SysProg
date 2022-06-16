@@ -4,6 +4,7 @@ struct builtin_table cmd_tbl[] = {
     {"exit", exit_mysh},
     {"cd", cd},
     {"pwd", pwd},
+    {"pid", pid},
     {NULL, NULL}
 };
 
@@ -11,6 +12,12 @@ void exit_mysh(int *argc, char *argv[])
 {
     fprintf(stderr, "Bye\r\n");
     exit(MYSH_OK);
+}
+
+void pid(int *argc, char *argv[])
+{
+    fprintf(stderr, "My pid: %d\r\n", getpid());
+    return;
 }
 
 void cd(int *argc, char *argv[])
@@ -88,9 +95,9 @@ int execute(struct line *line)
 
 int exec_extra(struct line *line)
 {
-    int status, ret;
+    int status, ret, fd;
     pid_t pid;
-    
+    struct sigaction sa_sigint;    
     
     if ((pid = fork()) < 0) {
         perror("fork");
@@ -98,16 +105,46 @@ int exec_extra(struct line *line)
     }
     if (pid == 0) {
         // child process
-        struct sigaction sa_sigint;
         sa_sigint.sa_handler = SIG_DFL;
         if ((ret = sigaction(SIGINT, &sa_sigint, NULL)) < 0) {
             perror("sigaction");
             exit(ret);
         }
-        exec_recursive(line, line->nblock-1);
+        sa_sigint.sa_handler = SIG_IGN;
+        if ((ret = sigaction(SIGTTOU, &sa_sigint, NULL)) < 0) {
+            perror("sigaction");
+            exit(ret);
+        }
+        if (setpgid(0, 0) < 0) {
+            perror("setpgid");
+            exit(MYSH_EXEC_ERR);
+        }
+        //if ((fd=open("/dev/tty", O_RDWR)) < 0) {
+        //if ((fd=open(ttyname(STDOUT_FILENO), O_RDWR)) < 0) {
+        //    perror("open");
+        //    exit(MYSH_EXEC_ERR);
+        //}
+        //close(fd);
+        if (tcsetpgrp(STDOUT_FILENO, getpid()) < 0) {
+            perror("tcsetpgrp");
+            exit(MYSH_EXEC_ERR);
+        }
+        if (tcgetpgrp(STDOUT_FILENO) < 0) {
+            perror("tcgetpgrp");
+            exit(MYSH_EXEC_ERR);
+        }
+        exit(exec_recursive(line, line->nblock-1));
     } else {
         // parent process
         waitpid(pid, &status, WUNTRACED);
+        if (tcsetpgrp(STDOUT_FILENO, getpid()) < 0) {
+            perror("tcsetpgrp");
+            exit(MYSH_EXEC_ERR);
+        }
+        if (tcgetpgrp(STDOUT_FILENO) < 0) {
+            perror("tcgetpgrp");
+            exit(MYSH_EXEC_ERR);
+        }
         debug(stderr, "child process %d return with %d, returned to main\r\n", pid, status);
         return status;
     }
@@ -116,8 +153,8 @@ int exec_extra(struct line *line)
 
 int exec_recursive(struct line *line, int pos)
 {
-    int status, pfd[2], fd=0;
-    pid_t pid;
+    int status, pfd[2], fd=0, ret;
+    pid_t pid[TOKEN_MAX];
     struct token_block *b;
 
     if (pos < 0) return MYSH_OK;
@@ -155,12 +192,8 @@ int exec_recursive(struct line *line, int pos)
         b=&line->blocks[--pos];
     }
     b=&line->blocks[pos];
-    if (pos == 0) {
-        //fprintf(stderr, "im the last child proc %d %s\r\n", getpid(), b->argv[0]);
-        child_proc(b->argv);
-    }
 
-    if ((pid = fork()) < 0) {
+    if ((pid[pos] = fork()) < 0) {
         perror("fork");
         if (close(pfd[1]) < 0) {
             perror("close");
@@ -173,22 +206,12 @@ int exec_recursive(struct line *line, int pos)
         return MYSH_EXEC_ERR;
     }
 
-    if (pid==0) {
-        if (dup2(pfd[1], 1) < 0) {
-            perror("dup2");
-            exit(MYSH_EXEC_ERR);
-        }
-        if (close(pfd[1]) < 0) {
-            perror("close");
-            exit(MYSH_EXEC_ERR);
-        }
-        if (close(pfd[0]) < 0) {
-            perror("close");
-            exit(MYSH_EXEC_ERR);
-        }
+    if (pid[pos]==0) {
         // child process
-        return exec_recursive(line, pos-1);
-    } else {
+        debug(stderr, "im child %d will exec %s\r\n", getpid(), b->argv[0]);
+        if (pos == 0) {
+            child_proc(&b->argc, b->argv);
+        }
         if (dup2(pfd[0], 0) < 0) {
             perror("dup2");
             exit(MYSH_EXEC_ERR);
@@ -201,9 +224,26 @@ int exec_recursive(struct line *line, int pos)
             perror("close");
             exit(MYSH_EXEC_ERR);
         }
+        child_proc(&b->argc, b->argv);
+    } else {
         // parent proc
-        //fprintf(stderr, "im parent %d %s\r\n", getpid(), b->argv[0]);
-        child_proc(b->argv);
+        if (dup2(pfd[1], 1) < 0) {
+            perror("dup2");
+            exit(MYSH_EXEC_ERR);
+        }
+        if (close(pfd[1]) < 0) {
+            perror("close");
+            exit(MYSH_EXEC_ERR);
+        }
+        if (close(pfd[0]) < 0) {
+            perror("close");
+            exit(MYSH_EXEC_ERR);
+        }
+        debug(stderr, "im pos %d, my child proc %d will execute %s\r\n", pos, pid[pos], b->argv[0]);
+        ret = exec_recursive(line, pos-1);
+        waitpid(pid[pos], NULL, 0);
+        debug(stderr, "%d is died\r\n", pid[pos]);
+        return ret;
     }
 
     return MYSH_OK;
@@ -211,8 +251,9 @@ int exec_recursive(struct line *line, int pos)
 
 extern char **environ;
 
-void child_proc(char *argv[])
+void child_proc(int *argc, char *argv[])
 {
+    argv[*argc] = NULL;
     char *path = getenv("PATH");
     char *p = path;
     int stat;

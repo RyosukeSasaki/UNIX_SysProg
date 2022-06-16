@@ -17,7 +17,8 @@ struct builtin_table {
 void exit_mysh(int *, char *[]);
 void cd(int *, char *[]);
 void pwd(int *, char *[]);
+void pid(int *, char *[]);
 int execute(struct line *);
 int exec_extra(struct line *);
 int exec_recursive(struct line *, int);
-void child_proc(char *[]);
+void child_proc(int *, char *[]);
