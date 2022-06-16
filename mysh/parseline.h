@@ -6,6 +6,7 @@
 #include "mysh_types.h"
 #include "execline.h"
 
-void read_command();
+int read_command(struct line *);
+int parseline(struct line *);
 int gettoken(char*, int*, int);
 void getargs(int*, char *[], char*);

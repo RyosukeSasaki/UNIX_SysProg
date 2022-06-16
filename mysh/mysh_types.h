@@ -1,4 +1,5 @@
 #pragma once
+#define PATH_LEN 256
 #define TOKEN_LEN 256
 #define TOKEN_MAX 256
 #define NARGS 64
@@ -6,12 +7,20 @@
 /*
  * uncomment a line below to show debug message
  */
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #define debug(...) { fprintf(__VA_ARGS__); }
 #else
 #define debug 1 ? (void) 0 : fprintf
 #endif
+
+enum MYSH_ERR {
+    MYSH_OK=0,
+    MYSH_PARSE_ERR=-1,
+    MYSH_EXEC_ERR=-2,
+    MYSH_ALLOC_ERR=-3,
+    MYSH_FILE_ERR=-4
+};
 
 enum TKN_TYPES {
     TKN_ERR=0,
@@ -26,6 +35,13 @@ enum TKN_TYPES {
     TKN_EOF
 };
 
+enum PIPE_DIR {
+    NOPIPE=0,
+    PIPE_IN,
+    PIPE_OUT,
+    PIPE_INOUT
+};
+
 struct token_table {
     int token;
     enum TKN_TYPES type;
@@ -34,13 +50,13 @@ struct token_table {
 struct token_block {
     int type;
     int argc;
-    int redir;
+    char *dir;
     char buf[TOKEN_LEN];
     char *argv[NARGS];
-    char *dir;
 };
 
 struct line {
     int nblock;
+    int bg;
     struct token_block blocks[TOKEN_MAX];
 };

@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <fcntl.h>
 #include "mysh_types.h"
 
 struct builtin_table {
@@ -14,6 +15,9 @@ struct builtin_table {
 };
 
 void exit_mysh(int *, char *[]);
+void cd(int *, char *[]);
+void pwd(int *, char *[]);
 int execute(struct line *);
-int exec_extra(struct line *, int);
+int exec_extra(struct line *);
+int exec_recursive(struct line *, int);
 void child_proc(char *[]);

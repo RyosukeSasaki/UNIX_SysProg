@@ -13,6 +13,6 @@ main: $(OBJS)
 clean:
 	rm $(PROG) $(OBJS) $(DEPS)
 
-test: main clean
+verify: main clean
 
 -include $(DEPS)
