@@ -17,7 +17,6 @@ int read_command(struct line *command_line)
     int *argc, *type;
     char **argv;
     char *line_buf;
-    //struct line command_line;
 
     do {
         while (1) {
