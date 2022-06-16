@@ -71,14 +71,6 @@ int execute(struct line *line)
         for (int k=0; k<line->blocks[j].argc; k++) {
             debug(stderr, "\targ %d: %s\r\n", k, line->blocks[j].argv[k]);
         }
-        /**
-        if (line->blocks[j].redir) {
-            debug(stderr, "\tredirect to %s\r\n", line->blocks[j].dir);
-        }
-        if (line->blocks[j].pipe > 0) {
-            debug(stderr, "\tpipe type %d\r\n", line->blocks[j].pipe);
-        }
-        **/
     }
     if (line->bg) debug(stderr, "this line execute as bg\r\n");
 
@@ -116,7 +108,6 @@ int exec_extra(struct line *line)
     } else {
         // parent process
         waitpid(pid, &status, WUNTRACED);
-        //wait(&status);
         debug(stderr, "child process %d return with %d, returned to main\r\n", pid, status);
         return status;
     }

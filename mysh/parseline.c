@@ -125,61 +125,6 @@ int parseline(struct line *line)
                 break;
         }
     }
-    /**
-    for (int i=0;i<line->nblock; i++) {
-        line->blocks[i].redir_in = 0;
-        line->blocks[i].redir_out = 0;
-        line->blocks[i].append = 0;
-        line->blocks[i].pipe = NOPIPE;
-    }
-    for (int i=1; i<line->nblock-1; i++) {
-        switch (line->blocks[i].type) {
-            case TKN_REDIR_IN:
-            case TKN_REDIR_OUT:
-            case TKN_REDIR_APPEND:
-                if (line->blocks[i-1].type == TKN_NORMAL && line->blocks[i+1].type == TKN_NORMAL) {
-                    line->blocks[i-1].redir_out = 1;
-                    line->blocks[i-1].dir_out = line->blocks[i+1].argv[0];
-                    line->blocks[i+1].type = TKN_DIR;
-                    if (line->blocks[i].type == TKN_REDIR_APPEND) 
-                } else if ( line->blocks[i-3].type == TKN_NORMAL && 
-                            line->blocks[i-1].type == TKN_DIR &&
-                            line->blocks[i+1].type == TKN_NORMAL) {
-                    line->blocks[i-3].redir_out = 1;
-                    line->blocks[i-1].dir_out = line->blocks[i+1].argv[0];
-                    line->blocks[i+1].type = TKN_DIR;
-                } else {
-                    fprintf(stderr, "Invalid use of redirection\r\n");
-                    return MYSH_PARSE_ERR;
-                }
-                break;
-            case TKN_PIPE:
-                if (line->blocks[i-1].type == TKN_NORMAL && line->blocks[i+1].type == TKN_NORMAL) {
-                    line->blocks[i-1].pipe += PIPE_OUT;
-                    line->blocks[i+1].pipe += PIPE_IN;
-                } else if ( line->blocks[i-3].type == TKN_NORMAL && 
-                            line->blocks[i-1].type == TKN_DIR &&
-                            line->blocks[i+1].type == TKN_NORMAL) {
-                    line->blocks[i-3].pipe += PIPE_OUT;
-                    line->blocks[i+1].pipe += PIPE_IN;
-                } else {
-                    fprintf(stderr, "Invalid use of pipe\r\n");
-                    return MYSH_PARSE_ERR;
-                }
-                break;
-            case TKN_BG:
-                if (i == line->nblock-2) {
-                    line->bg = 1;
-                } else {
-                    fprintf(stderr, "'&' must be at the end of line\r\n");
-                    return MYSH_PARSE_ERR;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    **/
     return MYSH_OK;
 }
 
