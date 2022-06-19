@@ -6,29 +6,23 @@
 #include "mysh_types.h"
 #include "execline.h"
 
-void main()
+void signal_conf()
 {
-    struct sigaction sa_sigint;
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGINT, &sa, NULL) < 0) {
+        perror("sigaction");
+        exit(0);
+    }
+    if (sigaction(SIGTTOU, &sa, NULL) < 0) {
+        perror("sigaction");
+        exit(0);
+    }
+}
+
+void main_loop()
+{
     struct line command_line;
-    sa_sigint.sa_handler = SIG_IGN;
-    if (sigaction(SIGINT, &sa_sigint, NULL) < 0) {
-        perror("sigaction");
-        exit(0);
-    }
-    if (sigaction(SIGTTOU, &sa_sigint, NULL) < 0) {
-        perror("sigaction");
-        exit(0);
-    }
-    /*
-    pid_t sid, pid;
-    if ((sid=setsid()) < 0) {
-        perror("setsid");
-        exit(0);
-    }
-    sid=getsid(pid=getpid());
-    fprintf(stderr, "sid %d pid %d\r\n", sid, pid);
-    fprintf(stderr, "Welcome to mysh.\r\n");
-    */
     while (1) {
         fprintf(stderr, "mysh $ ");
         if (read_command(&command_line) < 0) {
@@ -38,4 +32,11 @@ void main()
         }
     }
     exit(0);
+}
+
+void main()
+{
+    signal_conf();
+    fprintf(stderr, "Welcome to mysh.\r\n");
+    main_loop();
 }

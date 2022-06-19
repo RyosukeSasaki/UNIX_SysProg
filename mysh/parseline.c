@@ -34,6 +34,10 @@ int read_command(struct line *command_line)
             getargs(argc, argv, line_buf);
             command_line->nblock = ++i;
             if (*type >= TKN_EOL) {
+                if (command_line->nblock == 1) {
+                    i=0;
+                    continue;
+                }
                 break;
             } else if (*type == TKN_ERR) {
                 fprintf(stderr, "Error on parsing line.\r\n");
@@ -54,6 +58,7 @@ int gettoken(char *tkn, int *len, int max)
     struct token_table *p;
 
     while (isblank(ret)) ret=getc(stdin);
+    //while (ret == '\n') {printf("%d", ret);ret=getc(stdin);}
     if (ret == '>') {
         if ((ret=getc(stdin)) == '>') return TKN_REDIR_APPEND;
         if (ungetc(ret, stdin) == EOF) {

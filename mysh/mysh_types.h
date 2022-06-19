@@ -1,5 +1,5 @@
 #pragma once
-#define PATH_LEN 256
+//#define PATH_LEN 256
 #define TOKEN_LEN 256
 #define TOKEN_MAX 256
 #define NARGS 64
@@ -12,6 +12,15 @@
 #define debug(...) { fprintf(__VA_ARGS__); }
 #else
 #define debug 1 ? (void) 0 : fprintf
+#endif
+/*
+ * for parser debug
+ */
+//#define PARSER_DEBUG
+#ifdef PARSER_DEBUG
+#define parse_debug(...) { fprintf(__VA_ARGS__); }
+#else
+#define parse_debug 1 ? (void) 0 : fprintf
 #endif
 
 enum MYSH_ERR_T {
