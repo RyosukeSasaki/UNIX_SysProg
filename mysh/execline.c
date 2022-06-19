@@ -6,7 +6,7 @@
   int path_max = pathconf(path, _PC_PATH_MAX);
   if (path_max <= 0) path_max = 4096;
 #endif
-int fpid;
+pid_t fpid;
 
 struct builtin_table cmd_tbl[] = {
     {"exit", exit_mysh},
@@ -60,14 +60,21 @@ void pwd(int *argc, char *argv[])
 void sigchld_handler(int signum) {
     int status;
     pid_t pid;
-    debug(stderr, "im %d waiting %d\r\n", getpid(), fpid);
-    pid=waitpid(fpid, &status, WUNTRACED);
-    fprintf(stderr, "background job finished\r\n");
-
     struct sigaction sa;
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGCHLD, &sa, NULL) < 0) perror("sigaction");
-    fprintf(stderr, "mysh $ ");
+
+    debug(stderr, "im sigchld handler %d waiting %d\r\n", getpid(), fpid);
+    if ((pid=waitpid(fpid, &status, WUNTRACED | WNOHANG)) <= 0) {
+        //perror("waitpid");
+    } else {
+        debug(stderr, "catch %d die\r\n", pid);
+        fprintf(stderr, "background job (pid=%d) finished\r\n", pid);
+        fprintf(stderr, "mysh $ ");
+        sa.sa_handler = SIG_DFL;
+        if (sigaction(SIGCHLD, &sa, NULL) < 0) {
+            perror("sigaction");
+        }
+    }
+    return;
 }
 
 int execute(struct line *line)
@@ -98,14 +105,16 @@ int execute(struct line *line)
 int exec_extra(struct line *line)
 {
     int status, ret, fd;
-    pid_t pid;
+    pid_t pid, wpid;
     struct sigaction sa;
     
-    sa.sa_handler = line->bg ? sigchld_handler : SIG_DFL;
+    //if (line->bg) {
+    sa.sa_handler = sigchld_handler;
     if (sigaction(SIGCHLD, &sa, NULL) < 0) {
         perror("sigaction");
         return MYSH_EXEC_ERR;
     }
+    //}
     
     if ((pid = fork()) < 0) {
         perror("fork");
@@ -113,6 +122,7 @@ int exec_extra(struct line *line)
     }
     if (pid == 0) {
         // child process
+        debug(stderr, "im the first child %d\r\n", getpid());
         sa.sa_handler = SIG_DFL;
         if ((ret = sigaction(SIGINT, &sa, NULL)) < 0) {
             perror("sigaction");
@@ -146,10 +156,11 @@ int exec_extra(struct line *line)
         exit(ret);
     } else {
         // parent process
-        fpid = pid;
         if (!line->bg) {
-            debug(stderr, "im %d waiting %d\r\n", getpid(), pid);
-            waitpid(pid, &status, WUNTRACED);
+            debug(stderr, "im parent %d waiting %d\r\n", getpid(), pid);
+            if ((wpid=waitpid(pid, &status, WUNTRACED)) < 0) {
+                perror("waitpid");
+            }
             if (tcsetpgrp(STDOUT_FILENO, getpid()) < 0) {
                 perror("tcsetpgrp");
                 exit(MYSH_EXEC_ERR);
@@ -158,9 +169,12 @@ int exec_extra(struct line *line)
                 perror("tcgetpgrp");
                 exit(MYSH_EXEC_ERR);
             }
+            debug(stderr, "child process %d return with %d, returned to main\r\n", wpid, status);
+            return status;
+        } else {
+            fpid = pid;
+            debug(stderr, "fpid is set to %d\r\n", fpid);
         }
-        debug(stderr, "child process %d return with %d, returned to main\r\n", pid, status);
-        return status;
     }
     return MYSH_OK;
 }

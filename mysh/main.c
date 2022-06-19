@@ -18,6 +18,12 @@ void signal_conf()
         perror("sigaction");
         exit(0);
     }
+    //sa.sa_handler = sigchld_handler;
+    //if (sigaction(SIGCHLD, &sa, NULL) < 0) {
+    //    perror("sigaction");
+    //    //return MYSH_EXEC_ERR;
+    //    exit(0);
+    //}
 }
 
 void main_loop()
@@ -37,6 +43,6 @@ void main_loop()
 void main()
 {
     signal_conf();
-    fprintf(stderr, "Welcome to mysh.\r\n");
+    fprintf(stderr, "This is mysh. pid=%d\r\n", getpid());
     main_loop();
 }
