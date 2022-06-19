@@ -62,6 +62,7 @@ void sigchld_handler(int signum) {
     pid_t pid;
     struct sigaction sa;
 
+    getpid();
     debug(stderr, "im sigchld handler %d waiting %d\r\n", getpid(), fpid);
     if ((pid=waitpid(fpid, &status, WUNTRACED | WNOHANG)) <= 0) {
         //perror("waitpid");
@@ -152,6 +153,7 @@ int exec_extra(struct line *line)
             exit(MYSH_EXEC_ERR);
         }
         ret = exec_recursive(line, line->nblock-1);
+        getpid();
         debug(stderr, "im %d going to die with status %d\r\n", getpid(), ret);
         exit(ret);
     } else {
