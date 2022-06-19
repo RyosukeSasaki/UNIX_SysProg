@@ -6,7 +6,7 @@
   int path_max = pathconf(path, _PC_PATH_MAX);
   if (path_max <= 0) path_max = 4096;
 #endif
-pid_t fpid;
+volatile sig_atomic_t fpid;
 
 struct builtin_table cmd_tbl[] = {
     {"exit", exit_mysh},
@@ -63,13 +63,8 @@ void sigchld_handler(int signum) {
     struct sigaction sa;
 
     getpid();
-    debug(stderr, "im sigchld handler %d waiting %d\r\n", getpid(), fpid);
-    if ((pid=waitpid(fpid, &status, WUNTRACED | WNOHANG)) <= 0) {
-        //perror("waitpid");
+    if ((pid=waitpid(fpid, NULL, WUNTRACED | WNOHANG)) <= 0) {
     } else {
-        debug(stderr, "catch %d die\r\n", pid);
-        fprintf(stderr, "background job (pid=%d) finished\r\n", pid);
-        fprintf(stderr, "mysh $ ");
         sa.sa_handler = SIG_DFL;
         if (sigaction(SIGCHLD, &sa, NULL) < 0) {
             perror("sigaction");
@@ -111,6 +106,7 @@ int exec_extra(struct line *line)
     
     //if (line->bg) {
     sa.sa_handler = sigchld_handler;
+    sa.sa_flags = SA_NODEFER;
     if (sigaction(SIGCHLD, &sa, NULL) < 0) {
         perror("sigaction");
         return MYSH_EXEC_ERR;
@@ -124,6 +120,21 @@ int exec_extra(struct line *line)
     if (pid == 0) {
         // child process
         debug(stderr, "im the first child %d\r\n", getpid());
+        /**
+        if ((ret = sigprocmask(SIG_UNBLOCK)) < 0) {
+            perror("sigprocmask");
+            exit(ret);
+        }
+        if ((ret=sigemptyset(&sa.sa_mask)) < 0) {
+            perror("sigemptyset");
+            exit(ret);
+        }
+        if ((ret=sigaddset(&sa.sa_mask, SIGCHLD)) < 0) {
+            perror("sigaddset");
+            exit(ret);
+        }
+        **/
+       sa.sa_flags = 0;
         sa.sa_handler = SIG_DFL;
         if ((ret = sigaction(SIGINT, &sa, NULL)) < 0) {
             perror("sigaction");
