@@ -6,18 +6,12 @@ void socket_conf(int *sfd)
 int main()
 {
     dhcp_message_t msg;
-    msg.message.type = 0x12;
-    msg.message.code = 0x34;
-    msg.message.ttl = htons(0x5678);
-    msg.message.ipaddr = htonl(0xAAAAbbbb);
-    msg.message.netmask = htonl(0x22220000);
+    msg.message.type = DHCP_TYPE_DISCOVER;
+    msg.message.code = DHCP_CODE_OK;
+    msg.message.ttl = htons(0x1122);
+    msg.message.ipaddr = htonl(0x33445566);
+    msg.message.netmask = htonl(0x778899aa);
 
-    //in_port_t port = 49152;
-    //struct sockaddr_in addr;
-    //memset(&addr, 0, sizeof addr);
-    //addr.sin_family = AF_INET;
-    //addr.sin_port = htons(port);
-    //addr.sin_addr.s_addr = inet_addr("ipaddrstr");
     int err;
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
