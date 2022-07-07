@@ -26,14 +26,20 @@ typedef enum _event {
     unknown_msg
 } event_t;
 
+typedef struct _addr_pool {
+    struct _addr_pool *fp;
+    struct _addr_pool *bp;
+    struct in_addr addr;
+    struct in_addr netmask;
+} addr_pool_t;
+
 typedef struct _client {
     struct _client *fp;
     struct _client *bp;
     int stat;
     int ttlcounter;
     struct in_addr id;
-    struct in_addr addr;
-    struct in_addr netmask;
+    addr_pool_t *addr;
     in_port_t port;
     uint16_t ttl;
 } client_t;

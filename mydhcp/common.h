@@ -2,6 +2,9 @@
 #define COMMON_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 typedef enum _dhcp_type {
     DHCP_TYPE_DISCOVER=1,
