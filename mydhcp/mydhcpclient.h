@@ -58,7 +58,6 @@ proctable_t pstab[] = {
     {wait_ext_ack, ack_ok, start_using},
     {wait_ext_ack, sighup, send_release},
     {wait_ext_ack, ttl_timeout, terminate},
-    {wait_ext_ack, timeout, terminate},
     {wait_ext_ack, ack_ng, terminate},
     {wait_ext_ack, unknown_msg, terminate},
     {0, 0, NULL}

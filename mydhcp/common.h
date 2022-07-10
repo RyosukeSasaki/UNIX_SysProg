@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define UNKNOWN_MSG -2
-#define MESSAGE_TIMEOUT 4
+#define MESSAGE_TIMEOUT 10
 
 typedef enum _dhcp_type {
     DHCP_TYPE_DISCOVER=1,

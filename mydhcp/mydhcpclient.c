@@ -33,11 +33,8 @@ int main(int argc, char *argv[])
             // if timer interrupt occured
             switch (stat) {
                 case in_use:
-                    decrement_ttl();
-                    break;
                 case wait_ext_ack:
                     decrement_ttl();
-                    decrement_tout();
                     break;
                 case wait_offer1:
                 case wait_offer2:

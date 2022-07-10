@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
     event_t event;
     struct addrinfo *res;
     char *filepath;
-    
     stop_flag = 0;
     alarm_flag = 0;
     alarm_conf();
@@ -63,7 +62,7 @@ int main(int argc, char *argv[])
                 if (ptr->ttl <= 0) {
                     event = ttl_timeout;
                     if (FSM_func(&sfd, ptr, event) >= 0) {
-                        ptr=client_h.fp;
+                        ptr=&client_h;
                     }
                 }
             }
@@ -72,7 +71,7 @@ int main(int argc, char *argv[])
                     event = req_timeout;
                     fprintf(stderr, "## client %s, message timeout ##\n", inet_ntoa(ptr->addr->addr));
                     if (FSM_func(&sfd, ptr, event) >= 0) {
-                        ptr=client_h.fp;
+                        ptr=&client_h;
                     }
                 }
             }
@@ -80,8 +79,15 @@ int main(int argc, char *argv[])
         }
         FSM_func(&sfd, client_ptr, event);
     }
-    fprintf(stderr, "bye\r\n");
+    int unti;
+    for (client_t *ptr=client_h.fp; ptr!=&client_h; ptr=ptr->fp) {
+        fprintf(stderr, "delete %s\n", inet_ntoa(ptr->addr->addr));
+        if ((unti = release_client(&sfd, ptr)) >= 0) {
+            ptr=&client_h;
+        }
+    }
     close(sfd);
+    fprintf(stderr, "bye\r\n");
 }
 
 int FSM_func(int *sfd, client_t *client_ptr, int event)
