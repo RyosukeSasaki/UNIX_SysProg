@@ -39,15 +39,19 @@ proctable_t pstab[] = {
     {wait_offer1, offer_ok, send_request_alloc},
     {wait_offer1, offer_ng, terminate},
     {wait_offer1, timeout, resend_discover},
+    {wait_offer1, unknown_msg, terminate},
+    {wait_offer2, offer_ok, send_request_alloc},
     {wait_offer2, offer_ng, terminate},
     {wait_offer2, timeout, terminate},
-    {wait_offer2, offer_ok, send_request_alloc},
+    {wait_offer2, unknown_msg, terminate},
     {wait_ack1, ack_ok, start_using},
     {wait_ack1, ack_ng, terminate},
     {wait_ack1, timeout, resend_request_alloc},
+    {wait_ack1, unknown_msg, terminate},
+    {wait_ack2, ack_ok, start_using},
     {wait_ack2, ack_ng, terminate},
     {wait_ack2, timeout, terminate},
-    {wait_ack2, ack_ok, start_using},
+    {wait_ack2, unknown_msg, terminate},
     {in_use, half_ttl, send_request_ext},
     {in_use, sighup, send_release},
     {in_use, ttl_timeout, terminate},
@@ -55,7 +59,9 @@ proctable_t pstab[] = {
     {wait_ext_ack, sighup, send_release},
     {wait_ext_ack, ttl_timeout, terminate},
     {wait_ext_ack, timeout, terminate},
-    {wait_ext_ack, ack_ng, terminate}
+    {wait_ext_ack, ack_ng, terminate},
+    {wait_ext_ack, unknown_msg, terminate},
+    {0, 0, NULL}
 };
 
 int recv_offer(dhcp_message_t *);
@@ -67,7 +73,8 @@ typedef struct _parse_message {
 } parse_message_t;
 parse_message_t pmsgtab[] = {
     {DHCP_TYPE_OFFER, recv_offer},
-    {DHCP_TYPE_ACK, recv_ack}
+    {DHCP_TYPE_ACK, recv_ack},
+    {0, NULL}
 };
 
 void socket_conf(struct addrinfo **, char *, char *);
