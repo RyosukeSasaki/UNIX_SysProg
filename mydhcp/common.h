@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#define UNKNOWN_MSG -2
+#define MESSAGE_TIMEOUT 4
+
 typedef enum _dhcp_type {
     DHCP_TYPE_DISCOVER=1,
     DHCP_TYPE_OFFER,
@@ -39,7 +42,7 @@ struct _code_str {
     "OK",
     "NO IP",
     "ALLOCATION",
-    "EXTENTION",
+    "EXTENSION",
     "ERROR REQUEST"
 };
 

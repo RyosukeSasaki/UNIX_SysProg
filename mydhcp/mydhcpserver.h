@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <sys/time.h>
 #include "common.h"
 #include "mydhcpserver_types.h"
 
@@ -73,13 +74,16 @@ parse_message_t pmsgtab[] = {
 
 void socket_conf(int *, in_port_t);
 void signal_conf();
-void alarm_handler();
+void sigalrm_handler();
 void sighup_handler();
+void sigint_handler();
+void alarm_conf();
 
 void read_config(char *);
 void show_addr_pool();
 void getargs(int *, char *[], char *);
 char *normalize_path(char *);
+int FSM_func(int *, client_t *, int);
 
 void initialize_addr_pool();
 void insert_addr_pool(addr_pool_t *);
@@ -90,6 +94,8 @@ void initialize_client_buffer();
 void insert_client(client_t *);
 void remove_client(client_t *);
 client_t *create_client(struct sockaddr_in *);
+void decrement_ttl(client_t *);
+void decrement_tout(client_t *);
 
 int get_event(dhcp_message_t *, client_t *);
 int get_msg(int *, struct sockaddr_in *, socklen_t *, dhcp_message_t *);

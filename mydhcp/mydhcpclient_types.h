@@ -19,6 +19,8 @@ typedef enum _event {
     ack_ng,
     half_ttl,
     sighup,
+    timeout,
+    ttl_timeout,
     unknown_msg
 } event_t;
 

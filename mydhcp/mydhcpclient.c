@@ -6,7 +6,6 @@ int main(int argc, char *argv[])
     dhcp_message_t msg;
     struct sockaddr_in fromaddr;
     socklen_t addrsize = sizeof(fromaddr);
-    proctable_t *proc_ptr;
     event_t event;
 
     if (argc != 2) {
@@ -16,7 +15,10 @@ int main(int argc, char *argv[])
 
     stop_flag = 0;
     sighup_flag = 0;
+    sigint_flag = 0;
     alarm_flag = 0;
+    tout = MESSAGE_TIMEOUT;
+    alarm_conf();
     signal_conf();
     socket_conf(&res, argv[1], PORT);
 
@@ -24,37 +26,107 @@ int main(int argc, char *argv[])
     send_discover();
 
     while(!stop_flag) {
+        event = -1;
         ret = get_msg(&fromaddr, &addrsize, &msg);
 
         if (alarm_flag > 0) {
             // if timer interrupt occured
+            switch (stat) {
+                case in_use:
+                    decrement_ttl();
+                    break;
+                case wait_ext_ack:
+                    decrement_ttl();
+                    decrement_tout();
+                    break;
+                case wait_offer1:
+                case wait_offer2:
+                case wait_ack1:
+                case wait_ack2:
+                    decrement_tout();
+                    break;
+            }
             alarm_flag--;
-            continue;
         }
 
         if (ret > 0) {
             event = get_event(&msg);
-        } else { event = unknown_msg; }
-
-        for (proc_ptr=pstab; proc_ptr->stat; proc_ptr++) {
-            if (stat == proc_ptr->stat && event == proc_ptr->event) {
-                (*proc_ptr->func)(&sfd);
+        } else if (ret == UNKNOWN_MSG) {
+            event = unknown_msg;
+        } else if (sighup_flag) {
+            event = sighup;
+            sighup_flag = 0;
+        } else if (sigint_flag) {
+            fprintf(stderr, "Terminate without sending RELEASE\n");
+            stop_flag = 1;
+        } else {
+            if (ttl <= ttlcounter/2 && 0 < ttl) {
+                event = half_ttl;
+            } else if (tout <= 0) {
+                fprintf(stderr, "## message timeout ##\n");
+                event = timeout;
+            } else if (ttl <= 0) {
+                event = ttl_timeout;
             }
         }
+        FSM_func(event);
     }
-    fprintf(stderr, "bye\r\n");
+    fprintf(stderr, "bye\n");
     close(sfd);
     freeaddrinfo(res);
 }
 
-void sighup_handler() {sighup_flag = 1;}
+void decrement_ttl() {
+    ttl--;
+    fprintf(stderr, "-- Time to Live: %d --\n", ttl);
+}
+
+void decrement_tout() {
+    tout--;
+    fprintf(stderr, "-- waiting message, remaining time: %d --\n", tout);
+}
+
+int FSM_func(int event)
+{
+    for (proctable_t *proc_ptr=pstab; proc_ptr->stat; proc_ptr++) {
+        if (stat == proc_ptr->stat && event == proc_ptr->event) {
+            return (*proc_ptr->func)();
+        }
+    }
+}
+
+void sighup_handler() {sighup_flag=1;}
+void sigalrm_handler() {alarm_flag++;}
+void sigint_handler() {sigint_flag=1;}
 void signal_conf()
 {
     struct sigaction sa;
     sa.sa_handler = sighup_handler;
     if (sigaction(SIGHUP, &sa, NULL) < 0) {
         perror("sigaction");
-        exit(0);
+        exit(-1);
+    }
+    sa.sa_handler = sigalrm_handler;
+    if (sigaction(SIGALRM, &sa, NULL) < 0) {
+        perror("sigaction");
+        exit(-1);
+    }
+    sa.sa_handler = sigint_handler;
+    if (sigaction(SIGINT, &sa, NULL) < 0) {
+        perror("sigaction");
+        exit(-1);
+    }
+}
+
+void alarm_conf()
+{
+    struct itimerval itimer;
+    itimer.it_interval.tv_sec = 1;
+    itimer.it_interval.tv_usec = 0;
+    itimer.it_value = itimer.it_interval;
+    if (setitimer(ITIMER_REAL, &itimer, NULL) < 0) {
+        perror("setitimer");
+        exit(-1);
     }
 }
 
@@ -85,7 +157,7 @@ int get_msg(struct sockaddr_in *fromaddr, socklen_t *addrsize, dhcp_message_t *m
     memset(buf, 0, sizeof buf);
     memset(msg, 0, sizeof msg->data);
     if ((cnt = recvfrom(sfd, buf, sizeof buf, 0, (struct sockaddr *)fromaddr, addrsize)) < 0) {
-        perror("recvfrom");
+        //perror("recvfrom");
         return cnt;
     }
     if (cnt == 0) return -1;
@@ -112,7 +184,7 @@ int get_msg(struct sockaddr_in *fromaddr, socklen_t *addrsize, dhcp_message_t *m
         fprintf(stderr, "\tnetmask:   %s\n", inet_ntoa(addrbuf));
     } else {
         fprintf(stderr, "received data doesn't match dhcp message format.\n");
-        return -1;
+        return UNKNOWN_MSG;
     }
 
     return cnt;
@@ -135,7 +207,11 @@ void change_state(int _stat)
 {
     int oldstat = stat;
     stat = _stat;
+    tout = MESSAGE_TIMEOUT;
     fprintf(stderr, "## change state: %s to %s ##\n", ststr[oldstat].str, ststr[stat].str);
+    if (_stat == term) {
+        stop_flag = 1;
+    }
 }
 
 int send_discover()
@@ -162,8 +238,8 @@ int send_request_alloc()
     msg.message.ipaddr = addr.s_addr;
     msg.message.netmask = netmask.s_addr;
 
-    fprintf(stderr, "## send REQUEST ALLOCATION ##\n");
     ret = send_dhcp(&msg);
+    fprintf(stderr, "## send REQUEST ALLOCATION ##\n");
     change_state(wait_ack1);
     return ret;
 }
@@ -181,6 +257,7 @@ int send_request_ext()
 
     fprintf(stderr, "## send REQUEST EXTENSION ##\n");
     ret = send_dhcp(&msg);
+    change_state(wait_ext_ack);
     return ret;
 }
 
@@ -194,12 +271,51 @@ int send_release()
 
     fprintf(stderr, "## send RELEASE ##\n");
     ret = send_dhcp(&msg);
+    change_state(term);
     return ret;
 }
 
 int start_using()
 {
+    ttl = ttlcounter;
     change_state(in_use);
+    return 0;
+}
+
+int resend_discover()
+{
+    int ret;
+    dhcp_message_t msg;
+    memset(&msg, 0, sizeof(msg.data));
+    msg.message.type = DHCP_TYPE_DISCOVER;
+
+    fprintf(stderr, "## REsend DISCOVER ##\n");
+    ret = send_dhcp(&msg);
+    change_state(wait_offer2);
+    return ret;
+}
+
+int resend_request_alloc()
+{
+    int ret;
+    dhcp_message_t msg;
+    memset(&msg, 0, sizeof(msg.data));
+    msg.message.type = DHCP_TYPE_REQUEST;
+    msg.message.code = DHCP_CODE_REQ_ALLOC;
+    msg.message.ttl = htons(ttlcounter);
+    msg.message.ipaddr = addr.s_addr;
+    msg.message.netmask = netmask.s_addr;
+
+    ret = send_dhcp(&msg);
+    fprintf(stderr, "## REsend REQUEST ALLOCATION ##\n");
+    change_state(wait_ack2);
+    return ret;
+}
+
+int terminate()
+{
+    change_state(term);
+    return 0;
 }
 
 int recv_offer(dhcp_message_t *msg)
@@ -207,6 +323,7 @@ int recv_offer(dhcp_message_t *msg)
     int ok=offer_ok, err=offer_ng;
     if (msg->message.code == DHCP_CODE_ERR_NOIP) {
         fprintf(stderr, "## OFFER arrived, server's IP is depleted ##\n");
+        stop_flag = 1;
         return err;
     }
     ttlcounter = msg->message.ttl;

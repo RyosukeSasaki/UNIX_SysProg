@@ -7,13 +7,13 @@ int main(int argc, char *argv[])
     socklen_t addrsize = sizeof(fromaddr);
     dhcp_message_t msg;
     client_t *client_ptr;
-    proctable_t *proc_ptr;
     event_t event;
     struct addrinfo *res;
     char *filepath;
     
     stop_flag = 0;
     alarm_flag = 0;
+    alarm_conf();
     signal_conf();
     socket_conf(&sfd, PORT);
     initialize_client_buffer();
@@ -28,43 +28,81 @@ int main(int argc, char *argv[])
     free(filepath);
 
     while(!stop_flag) {
+        event = -1;
         ret = get_msg(&sfd, &fromaddr, &addrsize, &msg);
 
         if (alarm_flag > 0) {
             // if timer interrupt occured
+            for (client_t *ptr=client_h.fp; ptr!=&client_h; ptr=ptr->fp) {
+                if (ptr->stat == in_use) decrement_ttl(ptr);
+                if (ptr->stat == wait_req1) decrement_tout(ptr);
+                if (ptr->stat == wait_req2) decrement_tout(ptr);
+            }
             alarm_flag--;
+        }
+
+        if (ret > 0) {
+            for (client_ptr=client_h.fp; client_ptr!=&client_h; client_ptr=client_ptr->fp) {
+                if (client_ptr->id.s_addr == fromaddr.sin_addr.s_addr &&
+                client_ptr->port == fromaddr.sin_port) break;
+            }
+            if (client_ptr == &client_h) {
+                if (msg.message.type == DHCP_TYPE_DISCOVER) {
+                    if ((client_ptr=create_client(&fromaddr)) == NULL) {
+                        fprintf(stderr, "## failed to create new client ##\n");
+                        send_offer_ng(&sfd, &fromaddr);
+                        continue;
+                    }
+                }
+            }
+            event = get_event(&msg, client_ptr);
+        } else if (ret == UNKNOWN_MSG) {
+            event = unknown_msg;
+        } else {
+            for (client_t *ptr=client_h.fp; ptr!=&client_h; ptr=ptr->fp) {
+                if (ptr->ttl <= 0) {
+                    event = ttl_timeout;
+                    if (FSM_func(&sfd, ptr, event) >= 0) {
+                        ptr=client_h.fp;
+                    }
+                }
+            }
+            for (client_t *ptr=client_h.fp; ptr!=&client_h; ptr=ptr->fp) {
+                if (ptr->tout <= 0) {
+                    event = req_timeout;
+                    fprintf(stderr, "## client %s, message timeout ##\n", inet_ntoa(ptr->addr->addr));
+                    if (FSM_func(&sfd, ptr, event) >= 0) {
+                        ptr=client_h.fp;
+                    }
+                }
+            }
             continue;
         }
-        for (client_ptr=client_h.fp; client_ptr!=&client_h; client_ptr=client_ptr->fp) {
-            if (client_ptr->id.s_addr == fromaddr.sin_addr.s_addr &&
-            client_ptr->port == fromaddr.sin_port) break;
-        }
-        if (client_ptr == &client_h) {
-            if (msg.message.type == DHCP_TYPE_DISCOVER) {
-                if ((client_ptr=create_client(&fromaddr)) == NULL) {
-                    fprintf(stderr, "## failed to create new client ##\n");
-                    send_offer_ng(&sfd, &fromaddr);
-                    continue;
-                }
-            } else {
-                fprintf(stderr, "## got unknown message ##\n");
-                continue;
-            }
-        }
-        if (ret > 0) {
-            event = get_event(&msg, client_ptr);
-        } else { event = unknown_msg; }
-
-        for (proc_ptr=pstab; proc_ptr->stat; proc_ptr++) {
-            if (client_ptr->stat == proc_ptr->stat && event == proc_ptr->event) {
-                (*proc_ptr->func)(&sfd, client_ptr);
-            }
-        }
+        FSM_func(&sfd, client_ptr, event);
     }
     fprintf(stderr, "bye\r\n");
     close(sfd);
-};
+}
 
+int FSM_func(int *sfd, client_t *client_ptr, int event)
+{
+    for (proctable_t *proc_ptr=pstab; proc_ptr->stat; proc_ptr++) {
+        if (client_ptr->stat == proc_ptr->stat && event == proc_ptr->event) {
+            return (*proc_ptr->func)(sfd, client_ptr);
+        }
+    }
+    return -1;
+}
+
+void decrement_ttl(client_t *client) {
+    client->ttl--;
+    fprintf(stderr, "-- client %s, ttl: %d --\n", inet_ntoa(client->addr->addr), client->ttl);
+}
+
+void decrement_tout(client_t *client) {
+    client->tout--;
+    fprintf(stderr, "-- client %s, waiting message, remaining time: %d --\n", inet_ntoa(client->addr->addr), client->tout);
+}
 
 int get_event(dhcp_message_t *msg, client_t *client)
 {
@@ -73,7 +111,7 @@ int get_event(dhcp_message_t *msg, client_t *client)
         if (pmsg_ptr->type == msg->message.type) return (*pmsg_ptr->func)(msg, client);
     }
     if (pmsg_ptr->type == 0) return -1;
-};
+}
 
 int get_msg(int *sfd, struct sockaddr_in *fromaddr, socklen_t *addrsize, dhcp_message_t *msg) 
 {
@@ -85,7 +123,7 @@ int get_msg(int *sfd, struct sockaddr_in *fromaddr, socklen_t *addrsize, dhcp_me
     memset(buf, 0, sizeof(buf));
     memset(msg, 0, sizeof(msg->data));
     if ((cnt = recvfrom(*sfd, buf, sizeof(buf), 0, (struct sockaddr *)fromaddr, addrsize)) < 0) {
-        perror("recvfrom");
+        //perror("recvfrom");
         return cnt;
     }
     if (cnt == 0) return -1;
@@ -113,21 +151,44 @@ int get_msg(int *sfd, struct sockaddr_in *fromaddr, socklen_t *addrsize, dhcp_me
         fprintf(stderr, "\tnetmask:   %s\n", inet_ntoa(addrbuf));
     } else {
         fprintf(stderr, "received data doesn't match dhcp message format.\n");
-        return -1;
+        return UNKNOWN_MSG;
     }
     return cnt;
 }
 
 
-void alarm_handler() {}
-void sighup_handler() {stop_flag = 1;}
+void sigalrm_handler() {alarm_flag++;}
+void sigint_handler() {stop_flag=1;}
+void sighup_handler() {stop_flag=1;}
 void signal_conf()
 {
     struct sigaction sa;
     sa.sa_handler = sighup_handler;
     if (sigaction(SIGHUP, &sa, NULL) < 0) {
         perror("sigaction");
-        exit(0);
+        exit(-1);
+    }
+    sa.sa_handler = sigint_handler;
+    if (sigaction(SIGINT, &sa, NULL) < 0) {
+        perror("sigaction");
+        exit(-1);
+    }
+    sa.sa_handler = sigalrm_handler;
+    if (sigaction(SIGALRM, &sa, NULL) < 0) {
+        perror("sigaction");
+        exit(-1);
+    }
+}
+
+void alarm_conf()
+{
+    struct itimerval itimer;
+    itimer.it_interval.tv_sec = 1;
+    itimer.it_interval.tv_usec = 0;
+    itimer.it_value = itimer.it_interval;
+    if (setitimer(ITIMER_REAL, &itimer, NULL) < 0) {
+        perror("setitimer");
+        exit(-1);
     }
 }
 
@@ -196,11 +257,11 @@ void read_config(char *path)
 
 void show_addr_pool()
 {
-    fprintf(stderr, "## address pool ##\n");
-    fprintf(stderr, "ip address / netmask\n");
+    fprintf(stderr, "** address pool **\n");
+    fprintf(stderr, "\tip address / netmask\n");
     for (addr_pool_t *ptr=addr_pool_h.bp; ptr!=&addr_pool_h; ptr=ptr->bp) {
-        fprintf(stderr, "%s / ", inet_ntoa(ptr->addr));
-        fprintf(stderr, "%s\n", inet_ntoa(ptr->netmask));
+        fprintf(stderr, "\t%s / ", inet_ntoa(ptr->addr));
+        fprintf(stderr, "\t%s\n", inet_ntoa(ptr->netmask));
     }
 }
 
@@ -299,6 +360,7 @@ client_t *create_client(struct sockaddr_in *fromaddr)
         new->id = fromaddr->sin_addr;
         new->port = fromaddr->sin_port;
         new->addr = fetch_addr_pool();
+        new->tout = MESSAGE_TIMEOUT;
         change_state(new, init);
         insert_client(new);
         fprintf(stderr, "## new client %s created ##\n", inet_ntoa(new->addr->addr));
@@ -312,16 +374,16 @@ client_t *create_client(struct sockaddr_in *fromaddr)
 
 void insert_client(client_t *new)
 {
-    client_h.bp->fp = new;
-    new->bp = client_h.bp;
-    client_h.bp = new;
-    new->fp = &client_h;
+    new->bp = &client_h;
+    new->fp = client_h.fp;
+    client_h.fp->bp = new;
+    client_h.fp = new;
 }
 
 void remove_client(client_t *ptr)
 {
-    ptr->bp = ptr->fp;
-    ptr->fp = ptr->bp;
+    ptr->bp->fp = ptr->fp;
+    ptr->fp->bp = ptr->bp;
     free(ptr);
 }
 
@@ -330,14 +392,16 @@ void change_state(client_t *client, int stat)
 {
     int oldstat = client->stat;
     client->stat = stat;
-    if (stat == term) {
-        insert_addr_pool(client->addr);
-        fprintf(stderr, "## ip %s returned to addr pool ##", inet_ntoa(client->addr->addr));
-        show_addr_pool();
-        remove_client(client);
-    }
+    client->tout = MESSAGE_TIMEOUT;
     fprintf(stderr, "## client %s change its state: %s to %s ##\n", inet_ntoa(client->addr->addr),
     ststr[oldstat].str, ststr[stat].str);
+    if (stat == term) {
+        insert_addr_pool(client->addr);
+        fprintf(stderr, "## ip %s returned to addr pool ##\n", inet_ntoa(client->addr->addr));
+        show_addr_pool();
+        remove_client(client);
+        fprintf(stderr, "## client deleted ##\n");
+    }
 }
 
 // network byte order
@@ -417,26 +481,6 @@ int send_ack_ng(int *sfd, client_t *client)
     return ret;
 }
 
-int reset_ttl(int *sfd, client_t *client)
-{
-    client->ttl = client->ttlcounter;
-    return send_ack_ok(sfd, client);
-}
-
-int resend_offer(int *sfd, client_t *client)
-{
-    int ret;
-    ret = send_offer_ok(sfd, client);
-    change_state(client, wait_req2);
-    return ret;
-}
-
-int release_client(int *sfd, client_t *client)
-{
-    change_state(client, term);
-    return 0;
-}
-
 // receive function (generate event)
 int recv_discover(dhcp_message_t *msg, client_t *client)
 {
@@ -485,4 +529,36 @@ int recv_release(dhcp_message_t *msg, client_t *client)
         fprintf(stderr, "## RELEASE message invalid, continue ##\n");
     }
     return ret;
+}
+
+int reset_ttl(int *sfd, client_t *client)
+{
+    client->ttl = client->ttlcounter;
+    fprintf(stderr, "## TTL reseted ##\n");
+    fprintf(stderr, "-- client %s, ttl: %d --\n", inet_ntoa(client->addr->addr), client->ttl);
+    return send_ack_ok(sfd, client);
+}
+
+int resend_offer(int *sfd, client_t *client)
+{
+    int ret;
+    dhcp_message_t msg;
+    memset(&msg, 0, sizeof(msg.data));
+    msg.message.type = DHCP_TYPE_OFFER;
+    msg.message.code = DHCP_CODE_OK;
+    msg.message.ttl = htons(ttl_max);
+    msg.message.ipaddr = client->addr->addr.s_addr;
+    msg.message.netmask = client->addr->netmask.s_addr;
+
+    fprintf(stderr, "## REsend OFFER OK to %s:%d ##\n", inet_ntoa(client->id), htons(client->port));
+    ret = send_dhcp(sfd, &msg, client->id.s_addr, client->port);
+    change_state(client, wait_req2);
+    return ret;
+}
+
+int release_client(int *sfd, client_t *client)
+{
+    fprintf(stderr, "## TERMINATE client %s ##\n", inet_ntoa(client->addr->addr));
+    change_state(client, term);
+    return 0;
 }

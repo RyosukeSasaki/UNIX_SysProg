@@ -37,12 +37,12 @@ typedef struct _client {
     struct _client *fp;
     struct _client *bp;
     int stat;
-    uint16_t ttlcounter; // initial value of ttl
     int tout;
     struct in_addr id; //stored in network byte order
     addr_pool_t *addr; //stored in network byte order
     in_port_t port; //stored in network byte order
-    uint16_t ttl;
+    uint16_t ttlcounter; // initial value of ttl
+    int ttl;
 } client_t;
 
 
