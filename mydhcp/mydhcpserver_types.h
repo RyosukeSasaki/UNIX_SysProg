@@ -8,9 +8,9 @@
 typedef enum _stat {
     init=1,
     wait_req1,
+    wait_req2,
     in_use,
     term,
-    wait_req2
 } state_t;
 
 typedef enum _event {
@@ -37,10 +37,11 @@ typedef struct _client {
     struct _client *fp;
     struct _client *bp;
     int stat;
-    int ttlcounter;
-    struct in_addr id;
-    addr_pool_t *addr;
-    in_port_t port;
+    uint16_t ttlcounter; // initial value of ttl
+    int tout;
+    struct in_addr id; //stored in network byte order
+    addr_pool_t *addr; //stored in network byte order
+    in_port_t port; //stored in network byte order
     uint16_t ttl;
 } client_t;
 
