@@ -79,12 +79,9 @@ int main(int argc, char *argv[])
         }
         FSM_func(&sfd, client_ptr, event);
     }
-    int unti;
     for (client_t *ptr=client_h.fp; ptr!=&client_h; ptr=ptr->fp) {
         fprintf(stderr, "delete %s\n", inet_ntoa(ptr->addr->addr));
-        if ((unti = release_client(&sfd, ptr)) >= 0) {
-            ptr=&client_h;
-        }
+        if (release_client(&sfd, ptr) >= 0) ptr=&client_h;
     }
     close(sfd);
     fprintf(stderr, "bye\r\n");
