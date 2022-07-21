@@ -1,9 +1,11 @@
 #include "myftpc.h"
 
+int first_data;
+
 int main(int argc, char *argv[])
 {
     fd_set rdfds;
-    char buf[1024];
+    first_data = 1;
     if (argc != 2) {
         fprintf(stderr, "usage: myftpc ADDR\n");
         exit(1);
@@ -124,75 +126,103 @@ int help(int *argc, char *argv[])
 }
 
 int quit(int *argc, char *argv[]) {
-    ftp_message_t msg;
-    msg.type = TYPE_QUIT;
-    msg.code = CMD_OK;
-    msg.length = 0;
-    if (send(sfd, &msg, HEADER_SIZE, 0) < 0) {
-        perror("send");
-    }
+    send_msg(&sfd, TYPE_QUIT, CMD_OK, 0, NULL);
     close(sfd);
     exit(0);
 }
 
 int pwd(int *argc, char *argv[])
 {
-    ftp_message_t *msg;
-    ftp_message_t *reply;
-    msg->type = TYPE_PWD;
-    msg->code = CMD_OK;
-    msg->length = 0;
-    if (send(sfd, msg, HEADER_SIZE, 0) < 0) {
-        perror("send");
-        return -1;
-    }
-    if (recv_msg(reply, HEADER_SIZE) < 0) return -1;
-    reply->length = ntohs(reply->length);
-    debug_msg(reply);
-    if (reply->type==TYPE_OK && reply->code==CMD_OK) {
-        uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply->length+1));
-        recv_msg(data, reply->length);
-        data[reply->length]='\0';
-        fprintf(stderr, "%s\n", data);
-        free(data);
+    ftp_message_t reply;
+    if (send_msg(&sfd, TYPE_PWD, CMD_OK, 0, NULL) < 0) return -1;
+    if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
+    reply.length = ntohs(reply.length);
+    debug_msg(&reply);
+    if (reply.type==TYPE_OK && reply.code==CMD_OK) {
+        if (reply.length > 0) {
+            uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply.length+1));
+            recv_msg(data, reply.length);
+            data[reply.length]='\0';
+            fprintf(stderr, "%s\n", data);
+            free(data);
+        }
     } else {
+        recv_err(&reply);
+        return -1;
     }
     return 0;
 }
 
 int cd(int *argc, char *argv[])
 {
-    ftp_message_t *msg;
-    ftp_message_t *reply;
+    ftp_message_t reply;
 
     if (*argc != 2) {
         fprintf(stderr, "cd requires exact 1 argument\n");
         return -1;
     }
-    size_t pathlen = strlen(argv[1]);
-
-    msg = (ftp_message_t *)malloc(sizeof(uint8_t) * (HEADER_SIZE+pathlen));
-    msg->type = TYPE_CWD;
-    msg->code = CMD_OK;
-    msg->length = htons(pathlen);
-    memcpy(msg->data, argv[1], pathlen);
-    if (send(sfd, msg, HEADER_SIZE+pathlen, 0) < 0) {
-        perror("send");
-        return -1;
-    }
-    if (recv_msg(reply, HEADER_SIZE) < 0) return -1;
-    reply->length = ntohs(reply->length);
-    debug_msg(reply);
-    if (reply->type==TYPE_OK && reply->code==CMD_OK) {
+    if (send_msg(&sfd, TYPE_CWD, CMD_OK, strlen(argv[1]), argv[1]) < 0) return -1;
+    if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
+    reply.length = ntohs(reply.length);
+    debug_msg(&reply);
+    if (reply.type==TYPE_OK && reply.code==CMD_OK) {
         fprintf(stderr, "## cd succeeded ##\n");
     } else {
+        recv_err(&reply);
+        return -1;
     }
-    free(msg);
     return 0;
 }
 
 int dir(int *argc, char *argv[])
-{}
+{
+    ftp_message_t reply;
+    char search_path[PATH_MAX];
+
+    if (*argc == 2) {
+        if (snprintf(search_path, PATH_MAX, "%s", argv[1]) > PATH_MAX) {
+            fprintf(stderr, "## given arg is too long ##\n");
+            return -1;
+        }
+    } else if (*argc == 1) {
+        sprintf(search_path, ".");
+    } else {
+        fprintf(stderr, "Too many args given\n");
+        return -1;
+    }
+    if (send_msg(&sfd, TYPE_LIST, CMD_OK, strlen(search_path), search_path) < 0) return -1;
+    if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
+    if (reply.type==TYPE_OK && reply.code==CMD_OK_RETR) {
+        if (reply.length > 0) {
+            uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply.length+1));
+            recv_msg(data, reply.length);
+            data[reply.length]='\0';
+            fprintf(stderr, "%s\n", data);
+            free(data);
+        }
+    } else {
+        recv_err(&reply);
+        return -1;
+    }
+    
+    while (1) {
+        if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
+        reply.length = ntohs(reply.length);
+        if (reply.type == TYPE_DATA) {
+            if (reply.length > 0) {
+                uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply.length+1));
+                recv_msg(data, reply.length);
+                data[reply.length]='\0';
+                fprintf(stderr, "%s\n", data);
+                free(data);
+            }
+            if (reply.code == CMD_DATA_LAST) break;
+        } else {
+            recv_err(&reply);
+            return -1;
+        }
+    }
+}
 
 int lpwd(int *argc, char *argv[])
 {
@@ -212,74 +242,36 @@ int lcd(int *argc, char *argv[])
         return -1;
     }
 
-    char *fullpath;
-    if ((fullpath = normalize_path(argv[1])) != NULL) {
-        if (chdir(fullpath) < 0) {
-            perror("chdir");
-        }
-    }
-    free(fullpath);
-    return 0;
+    return change_dir(argv[1]);
 }
 
-void show_file(struct stat *st, char *name)
+int print_dir(struct stat *st, char *name)
 {
     char timestr[BUF_LEN];
     struct tm *tm_ptr;
     tm_ptr = localtime(&st->st_ctime);
     strftime(timestr, BUF_LEN, "%Y %b %d %H:%M", tm_ptr);
     fprintf(stderr, "%12zd %s %s\n", st->st_size, timestr, name);
+    return 0;
 };
+
+int file_err(int err) {return -1;}
 
 int ldir(int *argc, char *argv[])
 {
-    DIR *dir;
-    struct dirent *entry;
-    struct stat st;
-
-    if (*argc > 2) {
+    char search_path[PATH_MAX];
+    if (*argc == 2) {
+        if (snprintf(search_path, PATH_MAX, "%s", argv[1]) > PATH_MAX) {
+            fprintf(stderr, "## given arg is too long ##\n");
+            return -1;
+        }
+    } else if (*argc == 1) {
+        sprintf(search_path, ".");
+    } else {
         fprintf(stderr, "Too many args given\n");
         return -1;
     }
-    if (*argc == 1) {
-        argv[1] = ".";
-        argv[2] = NULL;
-    }
-
-    char *fullpath;
-    char name_full[PATH_MAX];
-    if ((fullpath = normalize_path(argv[1])) == NULL) {
-        return -1;        
-    }
-    if (stat(fullpath, &st) < 0) {
-        perror("stat");
-        free(fullpath);
-        return -1;
-    }
-    if (S_ISDIR(st.st_mode)) {
-        if ((dir = opendir(fullpath)) == NULL) {
-            perror("opendir");
-            free(fullpath);
-            return -1;
-        }
-        while ((entry = readdir(dir)) != NULL) {
-            memset(name_full, 0, PATH_MAX);
-            strcat(name_full, fullpath);
-            strcat(name_full, "/");
-            strcat(name_full, entry->d_name);
-            if (stat(name_full, &st) < 0) {
-                perror("stat");
-                free(fullpath);
-                return -1;
-            }
-            show_file(&st, entry->d_name);
-        }
-        closedir(dir);
-    } else {
-        show_file(&st, fullpath);
-    }
-    free(fullpath);
-    return 0;
+    return list_dir(search_path);
 }
 
 int ftpget(int *argc, char *argv[])
@@ -314,3 +306,6 @@ int sock_conf(char *addrstr)
     }
     freeaddrinfo(addr);
 }
+
+void recv_err(ftp_message_t *reply)
+{}

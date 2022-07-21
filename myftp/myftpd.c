@@ -1,5 +1,8 @@
 #include "myftpd.h"
 
+static int stop, sigint_flag, sigterm_flag;
+int first_data;
+
 int main(int *argc, char *argv[])
 {
     pid_t pid;
@@ -7,6 +10,7 @@ int main(int *argc, char *argv[])
     stop = 0;
     sigint_flag = 0;
     sigterm_flag = 0;
+    first_data = 1;
     if (signal_conf() < 0) exit(1);
     if (sock_conf() < 0) exit(1);
     
@@ -172,143 +176,104 @@ int signal_conf_child()
 
 int pwd(ftp_message_t *msg)
 {
-    ftp_message_t *reply;
     char path[PATH_MAX];
 
     fprintf(stderr, "## pwd command ##\n");
+
+    if (msg->length != 0) {
+        recv_msg(NULL, msg->length) ;
+        return -1;
+    }
 
     memset(path, 0, PATH_MAX);
     if (getcwd(path, sizeof(path)) == NULL) {
         perror("getcwd");
         return -1;
     }
-    reply = (ftp_message_t *)malloc(sizeof(uint8_t)*(HEADER_SIZE + strlen(path)));
-    reply->type = TYPE_OK;
-    reply->code = CMD_OK;
-    reply->length = htons(strlen(path));
-    memcpy(reply->data, path, strlen(path));
-    fprintf(stderr, "pwd %s\n", path);
-    if (send(sfd_client, reply, HEADER_SIZE+strlen(path), 0) < 0) {
-        perror("send");
-        free(reply);
-        return -1;
-    }
-    free(reply);
+    if (send_msg(&sfd_client, TYPE_OK, CMD_OK, strlen(path), path) < 0) return -1;
     return 0;
 }
 
 int cd(ftp_message_t *msg)
 {
-    ftp_message_t *reply;
-    int ret=0, err=0;
-    char *path;
-    char *fullpath;
-
+    char path[PATH_MAX];
     fprintf(stderr, "## cd command ##\n");
     
-    reply = (ftp_message_t *)malloc(sizeof(uint8_t)*HEADER_SIZE);
     if (msg->length == 0) {
-        reply->type = TYPE_ERR_CMD;
-        reply->code = CMD_ERR_SYNTAX;
-        reply->length = 0;
-        if (send(sfd, reply, HEADER_SIZE, 0) < 0) {
-            perror("send");
-            free(reply);
-            ret = -1;
-        }
-        free(reply);
-        return ret;
+        if (send_msg(&sfd_client, TYPE_ERR_CMD, CMD_ERR_SYNTAX, 0, NULL) < 0) return -1;
+        return 0;
     }
-
-    path = (uint8_t *)malloc(sizeof(uint8_t) * (msg->length+1));
-    if (recv_msg(path, msg->length) < 0) {
-        free(reply);
-        free(path);
+    if (recv_msg(path, msg->length) < 0) return -1;
+    path[msg->length] = '\0';
+    if (change_dir(path) < 0) {
+        if (file_err(errno) < 0) return -1;
         return -1;
     }
-    path[msg->length] = '\0';
-    if ((fullpath = normalize_path(path)) != NULL) {
-        if ((ret=chdir(fullpath)) < 0) {
-            perror("chdir");
-            err = errno;
-        }
-    }
-    free(fullpath);
-    free(path);
-
-    if (ret == 0) {
-        reply->type = TYPE_OK;
-        reply->code = CMD_OK;
-        reply->length = 0;
-    } else {
-        reply->type = TYPE_ERR_FILE;
-        reply->length = 0;
-        switch (err) {
-            case EACCES:
-                reply->code = CMD_ERR_PERMISSION;
-                break;
-            default:
-                reply->code = CMD_ERR_NEGATION;
-                break;
-        }
-    }
-    ret = 0;
-    if (send(sfd_client, reply, HEADER_SIZE, 0) < 0) {
-        perror("send");
-        ret = -1;
-    }
-    free(reply);
-    return ret;
+    if (send_msg(&sfd_client, TYPE_OK, CMD_OK, 0, NULL) < 0) return -1;
+    
+    return 0;
 }
 
-void file_str(struct stat *st, char *name)
+int file_err(int err)
+{
+    int code, type;
+    type = TYPE_ERR_FILE;
+    switch (err) {
+        case EACCES:
+            code = CMD_ERR_PERMISSION;
+            break;
+        case ENOENT:
+            code = CMD_ERR_NEGATION;
+            break;
+        default:
+            type = TYPE_ERR_UNKWN;
+            code = CMD_ERR_UNKWN;
+            break;
+    }
+    if (send_msg(&sfd_client, type, code, 0, NULL) < 0) return -1;
+    return 0;
+}
+
+int print_dir(struct stat *st, char *name)
 {
     char timestr[BUF_LEN];
+    char str_buf[BUF_LEN];
     struct tm *tm_ptr;
     tm_ptr = localtime(&st->st_ctime);
     strftime(timestr, BUF_LEN, "%Y %b %d %H:%M", tm_ptr);
-    fprintf(stderr, "%12zd %s %s\n", st->st_size, timestr, name);
-};
-
-int dir(ftp_message_t *msg) {
-    DIR *dir;
-    struct dirent *entry;
-    struct stat st;
-
-    char *fullpath;
-    char name_full[PATH_MAX];
-    if ((fullpath = normalize_path(argv[1])) == NULL) {
-        return -1;        
-    }
-    if (stat(fullpath, &st) < 0) {
-        perror("stat");
-        free(fullpath);
+    if (snprintf(str_buf, BUF_LEN, "%12zd %s %s", st->st_size, timestr, name) > BUF_LEN) {
         return -1;
     }
-    if (S_ISDIR(st.st_mode)) {
-        if ((dir = opendir(fullpath)) == NULL) {
-            perror("opendir");
-            free(fullpath);
+    //fprintf(stderr, "%s", str_buf);
+    if (send_data(strlen(str_buf), str_buf) < 0) return -1;
+    return 0;
+}
+
+int send_data(uint16_t length, uint8_t *data)
+{
+    if (first_data) {
+        send_msg(&sfd_client, TYPE_OK, CMD_OK_RETR, 0, NULL);
+        first_data = 0;
+    }
+    return send_msg(&sfd_client, TYPE_DATA, CMD_DATA, length, data);
+}
+
+
+int dir(ftp_message_t *msg)
+{
+    int ret;
+    char search_path[PATH_MAX];
+    if (msg->length == 0) {
+        sprintf(search_path, ".");
+    } else {
+        if (recv_msg(search_path, msg->length) < 0) {
             return -1;
         }
-        while ((entry = readdir(dir)) != NULL) {
-            memset(name_full, 0, PATH_MAX);
-            strcat(name_full, fullpath);
-            strcat(name_full, "/");
-            strcat(name_full, entry->d_name);
-            if (stat(name_full, &st) < 0) {
-                perror("stat");
-                free(fullpath);
-                return -1;
-            }
-            file_str(&st, entry->d_name);
-        }
-        closedir(dir);
-    } else {
-        file_str(&st, fullpath);
+        search_path[msg->length] = '\0';
     }
-    free(fullpath);
-    return 0;
+    ret = list_dir(search_path);
+    send_msg(&sfd_client, TYPE_DATA, CMD_DATA_LAST, 0, NULL);
+    return ret;
 }
 
 int ftpget(ftp_message_t *msg) {}

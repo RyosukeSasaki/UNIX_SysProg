@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <time.h>
 #include "common.h"
 
@@ -23,14 +22,13 @@ void sigchld_handler(int);
 void sigint_handler(int);
 void sigterm_handler(int);
 void kill_children();
+int send_data(uint16_t, uint8_t *);
 int pwd(ftp_message_t *);
 int cd(ftp_message_t *);
 int dir(ftp_message_t *);
 int ftpget(ftp_message_t *);
 int ftpput(ftp_message_t *);
 int quit(ftp_message_t *);
-int recv_msg(void *, int);
-void file_str(struct stat *, char *);
 
 typedef struct _vmsg {
     int type;
@@ -49,7 +47,6 @@ valid_message_t valid_commands[] = {
 };
 
 int sfd, sfd_client;
-int stop, sigint_flag, sigterm_flag;
 struct sockaddr_in client;
 socklen_t client_len;
 

@@ -12,7 +12,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <time.h>
 #include <sys/select.h>
 #include <errno.h>
@@ -32,9 +31,8 @@ int ftpput(int*, char *[]);
 int help(int*, char *[]);
 int getargs(int*, char *[], char*);
 int exec_command();
-void show_file(struct stat *, char *);
 int sock_conf();
-int recv_msg(void *, int);
+void recv_err(ftp_message_t *);
 
 struct command_table_t {
     char *cmd;
