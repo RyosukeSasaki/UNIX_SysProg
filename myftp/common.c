@@ -28,3 +28,11 @@ char *normalize_path(char *arg)
 
     return fullpath;
 }
+
+void debug_msg(ftp_message_t *msg)
+{
+    fprintf(stderr, "## message arrived ##\n");
+    fprintf(stderr, "\ttype     : %d\n", msg->type);
+    fprintf(stderr, "\tcode     : %d\n", msg->code);
+    fprintf(stderr, "\tlength   : %d\n", msg->length);
+}

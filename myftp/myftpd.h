@@ -1,8 +1,6 @@
 #ifndef MYFTPD_H
 #define MYFTPD_H
 
-#define MAX_CLIENT 32
-
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -11,36 +9,47 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <time.h>
 #include "common.h"
-
-struct child_proc_list {
-    pid_t pid;
-    struct child_proc_list *fp;
-    struct child_proc_list *bp;
-};
 
 int sock_conf();
 int signal_conf();
 int signal_conf_child();
 int wait_client();
 int client_handler();
-void sigchld_handler();
-void sigint_handler();
-void sigterm_handler();
+void sigchld_handler(int);
+void sigint_handler(int);
+void sigterm_handler(int);
 void kill_children();
-void init_list();
-void insert_child_list(struct child_proc_list *);
-void remove_child_list(struct child_proc_list *);
-int pwd(int*, char *[]);
-int cd(int*, char *[]);
-int dir(int*, char *[]);
-int ftpget(int*, char *[]);
-int ftpput(int*, char *[]);
+int pwd(ftp_message_t *);
+int cd(ftp_message_t *);
+int dir(ftp_message_t *);
+int ftpget(ftp_message_t *);
+int ftpput(ftp_message_t *);
+int quit(ftp_message_t *);
+int recv_msg(void *, int);
+void file_str(struct stat *, char *);
 
+typedef struct _vmsg {
+    int type;
+    int code;
+    int (* func)(ftp_message_t *);
+} valid_message_t;
+
+valid_message_t valid_commands[] = {
+    {TYPE_QUIT, CMD_OK, quit},
+    {TYPE_PWD, CMD_OK, pwd},
+    {TYPE_CWD, CMD_OK, cd},
+    {TYPE_LIST, CMD_OK, dir},
+    {TYPE_RETR, CMD_OK, ftpget},
+    {TYPE_STOR, CMD_OK, ftpput},
+    {0, 0}
+};
 
 int sfd, sfd_client;
 int stop, sigint_flag, sigterm_flag;
-struct child_proc_list child_head;
 struct sockaddr_in client;
 socklen_t client_len;
 

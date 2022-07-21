@@ -9,9 +9,23 @@
 #include <stdio.h>
 
 #define MYFTP_PORT 50021
+#define HEADER_SIZE 4
+#define TIMEOUT 1
+#define BUF_LEN 256
+
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
+
+#define CMD_OK 0x00
+#define CMD_ERR_NEGATION 0x00
+#define CMD_DATA_RETR 0x01
+#define CMD_ERR_SYNTAX 0x01
+#define CMD_ERR_PERMISSION 0x01
+#define CMD_DATA_STOR 0x02
+#define CMD_ERR_UNDEF 0x02
+#define CMD_ERR_PRTCL 0x03
+#define CMD_ERR_UNKWN 0x05
 
 enum ftp_type {
     TYPE_QUIT = 0x01,
@@ -27,21 +41,14 @@ enum ftp_type {
     TYPE_DATA = 0x20
 };
 
-enum ftp_code {
-    CMD_OK = 0x00,
-    CMD_DATA_RETR,
-    CMD_DATA_STOR,
-    CMD_ERR_PRTCL,
-    CMD_ERR_UNKWN = 0x05
-};
-
 typedef struct _ftp_message {
     uint8_t type;
     uint8_t code;
     uint16_t length;
-    char data[0];
+    uint8_t data[0];
 } ftp_message_t;
 
 char *normalize_path(char *arg);
+void debug_msg(ftp_message_t *);
 
 #endif

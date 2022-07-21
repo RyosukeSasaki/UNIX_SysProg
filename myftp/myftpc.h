@@ -1,17 +1,24 @@
 #ifndef MYFTPC_H
 #define MYFTPC_H
 
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <time.h>
+#include <sys/select.h>
+#include <errno.h>
 #include "common.h"
 
 #define NARGS 64
-#define BUF_LEN 256
 
 int quit(int*, char *[]);
 int pwd(int*, char *[]);
@@ -26,6 +33,8 @@ int help(int*, char *[]);
 int getargs(int*, char *[], char*);
 int exec_command();
 void show_file(struct stat *, char *);
+int sock_conf();
+int recv_msg(void *, int);
 
 struct command_table_t {
     char *cmd;
@@ -45,5 +54,22 @@ struct command_table_t {
     {"help", help, "\tShow command description\n"},
     {NULL, NULL, NULL}
 };
+
+/**
+valid_message_t valid_replies[] = {
+    {TYPE_OK, CMD_OK},
+    {TYPE_OK, CMD_DATA_RETR},
+    {TYPE_OK, CMD_DATA_STOR},
+    {TYPE_ERR_CMD, CMD_ERR_SYNTAX},
+    {TYPE_ERR_CMD, CMD_ERR_UNDEF},
+    {TYPE_ERR_CMD, CMD_ERR_PRTCL},
+    {TYPE_ERR_FILE, CMD_ERR_NEGATION},
+    {TYPE_ERR_FILE, CMD_ERR_PERMISSION},
+    {TYPE_ERR_UNKWN, CMD_ERR_UNKWN},
+    {0, 0}
+};
+**/
+
+int sfd;
 
 #endif

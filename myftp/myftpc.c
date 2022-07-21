@@ -1,10 +1,55 @@
 #include "myftpc.h"
 
-int main(int *argc, char *argv[])
+int main(int argc, char *argv[])
 {
-    while(1) {
-        exec_command();
+    fd_set rdfds;
+    char buf[1024];
+    if (argc != 2) {
+        fprintf(stderr, "usage: myftpc ADDR\n");
+        exit(1);
     }
+    if (sock_conf(argv[1]) < 0) exit(1);
+    FD_ZERO(&rdfds);
+    FD_SET(STDIN_FILENO, &rdfds);
+    FD_SET(sfd, &rdfds);
+
+    while(1) {
+        fprintf(stderr, "\x1b[34mmyFTP%%\x1b[0m ");
+        if (select(sfd+1, &rdfds, NULL, NULL, NULL) < 0) {
+            perror("select");
+        }
+        if (FD_ISSET(STDIN_FILENO, &rdfds)) exec_command();
+        if (FD_ISSET(sfd, &rdfds)) {
+            if (recv_msg(NULL, 1) < 0) exit(1);
+        }
+    }
+}
+
+int recv_msg(void *msg, int len)
+{
+    int cnt=0, ret;
+    struct timeval tv;
+    tv.tv_sec=TIMEOUT;
+    tv.tv_usec=0;
+    fd_set rdfds;
+    FD_ZERO(&rdfds);
+    FD_SET(sfd, &rdfds);
+
+    while (cnt < len) {
+        if ((ret=select(sfd+1, &rdfds, NULL, NULL, &tv)) < 0) {
+            perror("select");
+            return -1;
+        } else if (ret == 0) {
+            fprintf(stderr, "## timeout ##\n");
+            return -1;
+        }
+        if ((ret=recv(sfd, msg, len-cnt, 0)) <= 0) {
+            if (errno != 0) perror("recv");
+            return -1;
+        }
+        cnt += ret;
+    }
+    return 0;
 }
 
 int exec_command()
@@ -12,7 +57,6 @@ int exec_command()
     char lbuf[BUF_LEN], *av[NARGS];
     int ac;
     struct command_table_t* p;
-    fprintf(stderr, "\x1b[34mmyFTP%%\x1b[0m ");
     if(fgets(lbuf, sizeof lbuf, stdin) == NULL) {
         fprintf(stderr, "\n");
         return 0;
@@ -79,35 +123,96 @@ int help(int *argc, char *argv[])
     return -1;
 }
 
-int quit(int *argc, char *argv[]) { exit(0); }
+int quit(int *argc, char *argv[]) {
+    ftp_message_t msg;
+    msg.type = TYPE_QUIT;
+    msg.code = CMD_OK;
+    msg.length = 0;
+    if (send(sfd, &msg, HEADER_SIZE, 0) < 0) {
+        perror("send");
+    }
+    close(sfd);
+    exit(0);
+}
 
 int pwd(int *argc, char *argv[])
-{}
+{
+    ftp_message_t *msg;
+    ftp_message_t *reply;
+    msg->type = TYPE_PWD;
+    msg->code = CMD_OK;
+    msg->length = 0;
+    if (send(sfd, msg, HEADER_SIZE, 0) < 0) {
+        perror("send");
+        return -1;
+    }
+    if (recv_msg(reply, HEADER_SIZE) < 0) return -1;
+    reply->length = ntohs(reply->length);
+    debug_msg(reply);
+    if (reply->type==TYPE_OK && reply->code==CMD_OK) {
+        uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply->length+1));
+        recv_msg(data, reply->length);
+        data[reply->length]='\0';
+        fprintf(stderr, "%s\n", data);
+        free(data);
+    } else {
+    }
+    return 0;
+}
+
 int cd(int *argc, char *argv[])
-{}
+{
+    ftp_message_t *msg;
+    ftp_message_t *reply;
+
+    if (*argc != 2) {
+        fprintf(stderr, "cd requires exact 1 argument\n");
+        return -1;
+    }
+    size_t pathlen = strlen(argv[1]);
+
+    msg = (ftp_message_t *)malloc(sizeof(uint8_t) * (HEADER_SIZE+pathlen));
+    msg->type = TYPE_CWD;
+    msg->code = CMD_OK;
+    msg->length = htons(pathlen);
+    memcpy(msg->data, argv[1], pathlen);
+    if (send(sfd, msg, HEADER_SIZE+pathlen, 0) < 0) {
+        perror("send");
+        return -1;
+    }
+    if (recv_msg(reply, HEADER_SIZE) < 0) return -1;
+    reply->length = ntohs(reply->length);
+    debug_msg(reply);
+    if (reply->type==TYPE_OK && reply->code==CMD_OK) {
+        fprintf(stderr, "## cd succeeded ##\n");
+    } else {
+    }
+    free(msg);
+    return 0;
+}
+
 int dir(int *argc, char *argv[])
 {}
 
 int lpwd(int *argc, char *argv[])
 {
     char fullpath[PATH_MAX];
-    if (getcwd(fullpath, sizeof(fullpath)) < 0) {
+    if (getcwd(fullpath, sizeof(fullpath)) == NULL) {
         perror("getcwd");
         return -1;
     }
-    fprintf(stderr, "%s\r\n", fullpath);
+    fprintf(stderr, "%s\n", fullpath);
     return 0;
 }
 
 int lcd(int *argc, char *argv[])
 {
-    char relpath[PATH_MAX];
-    char *fullpath;
     if (*argc != 2) {
-        fprintf(stderr, "lcd requires exact 1 argument\r\n");
+        fprintf(stderr, "lcd requires exact 1 argument\n");
         return -1;
     }
 
+    char *fullpath;
     if ((fullpath = normalize_path(argv[1])) != NULL) {
         if (chdir(fullpath) < 0) {
             perror("chdir");
@@ -141,26 +246,39 @@ int ldir(int *argc, char *argv[])
         argv[2] = NULL;
     }
 
-    if (stat(argv[1], &st) < 0) {
+    char *fullpath;
+    char name_full[PATH_MAX];
+    if ((fullpath = normalize_path(argv[1])) == NULL) {
+        return -1;        
+    }
+    if (stat(fullpath, &st) < 0) {
         perror("stat");
+        free(fullpath);
         return -1;
     }
     if (S_ISDIR(st.st_mode)) {
-        if ((dir = opendir(argv[1])) == NULL) {
+        if ((dir = opendir(fullpath)) == NULL) {
             perror("opendir");
+            free(fullpath);
             return -1;
         }
         while ((entry = readdir(dir)) != NULL) {
-            if (stat(entry->d_name, &st) < 0) {
+            memset(name_full, 0, PATH_MAX);
+            strcat(name_full, fullpath);
+            strcat(name_full, "/");
+            strcat(name_full, entry->d_name);
+            if (stat(name_full, &st) < 0) {
                 perror("stat");
+                free(fullpath);
                 return -1;
             }
             show_file(&st, entry->d_name);
         }
         closedir(dir);
     } else {
-        show_file(&st, argv[1]);
+        show_file(&st, fullpath);
     }
+    free(fullpath);
     return 0;
 }
 
@@ -168,3 +286,31 @@ int ftpget(int *argc, char *argv[])
 {}
 int ftpput(int *argc, char *argv[])
 {}
+
+int sock_conf(char *addrstr)
+{
+    int ret;
+    char portstr[10];
+    struct addrinfo hints, *addr;
+    sprintf(portstr, "%d", MYFTP_PORT);
+    memset(&hints, 0, sizeof hints);
+    hints.ai_socktype = SOCK_STREAM;
+    if ((ret=getaddrinfo(addrstr, portstr, &hints, &addr)) < 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
+        return -1;
+    }
+    if ((sfd=socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
+        perror("socket");
+        return -1;
+    }
+    int yes = 1;
+    if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes)) < 0) {
+        perror("setsockopt");
+        return -1;
+    }
+    if (connect(sfd, addr->ai_addr, addr->ai_addrlen) < 0) {
+        perror("connect");
+        return -1;
+    }
+    freeaddrinfo(addr);
+}
