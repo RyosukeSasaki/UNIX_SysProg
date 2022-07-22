@@ -9,7 +9,8 @@ char *normalize_path(char *arg)
     if (arg[0] == '~') {
         if ((home=getenv("HOME")) == NULL) return NULL;
         if (strlen(home)+strlen(arg) > PATH_MAX -1) {
-            fprintf(stderr, "path string is too long\r\n");
+            fprintf(stderr, "## path string is too long ##\n");
+            errno = -1;
             return NULL;
         }
         memset(relpath, 0, sizeof(relpath));
@@ -31,10 +32,9 @@ char *normalize_path(char *arg)
 
 void debug_msg(ftp_message_t *msg)
 {
-    fprintf(stderr, "## message arrived ##\n");
-    fprintf(stderr, "\ttype     : %d\n", msg->type);
-    fprintf(stderr, "\tcode     : %d\n", msg->code);
-    fprintf(stderr, "\tlength   : %d\n", msg->length);
+    debug(stderr, "\ttype     : %d\n", msg->type);
+    debug(stderr, "\tcode     : %d\n", msg->code);
+    debug(stderr, "\tlength   : %d\n", msg->length);
 }
 
 int send_msg(int *sfd, uint8_t type, uint8_t code, uint16_t length, uint8_t *data)
@@ -45,6 +45,10 @@ int send_msg(int *sfd, uint8_t type, uint8_t code, uint16_t length, uint8_t *dat
     if (type!=TYPE_DATA||(type==TYPE_DATA&&code==CMD_DATA_LAST)) first_data = 1;
     msg->type = type;
     msg->code = code;
+    msg->length = length;
+    debug(stderr, "-- send message --\n");
+    debug_msg(msg);
+    debug(stderr, "------------------\n");
     msg->length = htons(length);
     if (data != NULL) {
         memcpy(msg->data, data, length);
@@ -66,6 +70,8 @@ int change_dir(char *path)
     char *fullpath;
     if ((fullpath = normalize_path(path)) != NULL) {
         if ((ret=chdir(fullpath)) < 0) perror("chdir");
+    } else {
+        return -1;
     }
     free(fullpath);
     return ret;
@@ -81,7 +87,7 @@ int list_dir(char *search_path)
     char *fullpath;
     char name_full[PATH_MAX];
     if ((fullpath = normalize_path(search_path)) == NULL) {
-        file_err(-1);
+        file_err(errno);
         return -1;
     }
     if (stat(fullpath, &st) < 0) {
@@ -113,4 +119,51 @@ int list_dir(char *search_path)
     }
     free(fullpath);
     return ret;
+}
+
+int send_file(int *sfd, int *fd)
+{
+    int pos=0, readlen=0;
+    char buf[READBLK];
+    struct stat st;
+    if (fstat(*fd, &st) < 0) {
+        perror("fstat");
+        return -1;
+    }
+    while(pos < st.st_size) {
+        if ((readlen=read(*fd, buf, sizeof(buf))) < 0) {
+            perror("read");
+            return -1;
+        }
+        if (send_data(readlen, buf) < 0) return -1;
+        pos += readlen;
+    }
+    return 0;
+}
+
+int recv_file(int *sfd, int *fd)
+{
+    ftp_message_t reply;
+    char buf[READBLK];
+    int remain, ret, readlen;
+
+    while (1) {
+        if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
+        remain = reply.length = ntohs(reply.length);
+        if (reply.type == TYPE_DATA) {
+            if (reply.length > 0) {
+                while (remain > 0) {
+                    readlen = (remain > READBLK)? READBLK:remain;
+                    if ((ret=recv_msg(buf, readlen)) < 0) return -1;
+                    if (write(*fd, buf, ret) < 0) return -1;
+                    remain -= ret;
+                }
+            }
+            if (reply.code == CMD_DATA_LAST) break;
+        } else {
+            recv_err(&reply);
+            return -1;
+        }
+    }
+    return 0;
 }

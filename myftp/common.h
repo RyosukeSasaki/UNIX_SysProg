@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <fcntl.h>
 #include <stdint.h>
 #include <linux/limits.h>
 #include <limits.h>
@@ -20,6 +21,7 @@
 #define HEADER_SIZE 4
 #define TIMEOUT 1
 #define BUF_LEN 256
+#define READBLK 1024
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -36,6 +38,13 @@
 #define CMD_ERR_UNKWN 0x05
 #define CMD_DATA_LAST 0x00
 #define CMD_DATA 0x01
+
+//#define VERBOSE
+#ifdef VERBOSE
+#define debug(...) { fprintf(__VA_ARGS__); }
+#else
+#define debug 1 ? (void) 0 : fprintf
+#endif
 
 enum ftp_type {
     TYPE_QUIT = 0x01,
@@ -65,8 +74,12 @@ void debug_msg(ftp_message_t *);
 int send_msg(int *, uint8_t, uint8_t, uint16_t, uint8_t *);
 extern int recv_msg(void *, int);
 extern int print_dir(struct stat *, char *);
-int list_dir(char *);
 extern int file_err(int);
+extern int send_data(uint16_t, uint8_t *);
+extern void recv_err(ftp_message_t *);
+int list_dir(char *);
 int change_dir(char *);
+int send_file(int *, int *);
+int recv_file(int *, int *);
 
 #endif

@@ -3,7 +3,7 @@
 static int stop, sigint_flag, sigterm_flag;
 int first_data;
 
-int main(int *argc, char *argv[])
+int main(int argc, char *argv[])
 {
     pid_t pid;
     int ret;
@@ -13,6 +13,11 @@ int main(int *argc, char *argv[])
     first_data = 1;
     if (signal_conf() < 0) exit(1);
     if (sock_conf() < 0) exit(1);
+    if (argc == 2) {
+        if (change_dir(argv[1]) < 0) exit(1);
+    } else if (argc > 2) {
+        fprintf(stderr, "usage: myftpd [WORKING DIR]");
+    }
     
     while (!stop) {
         if (sigint_flag) {
@@ -40,7 +45,6 @@ int main(int *argc, char *argv[])
             }
         }
     }
-    fprintf(stderr, "## close socket ##\n");
     close(sfd);
     fprintf(stderr, "## This is proc %d, Bye ##\n", getpid());
     exit(0);
@@ -58,13 +62,13 @@ int recv_msg(void *msg, int len)
 {
     int cnt=0, ret;
     while (cnt < len) {
-        if ((ret=recv(sfd_client, msg, len-cnt, 0)) <= 0) {
+        if ((ret=recv(sfd_client, &(((char *)msg)[cnt]), len-cnt, 0)) <= 0) {
             if (errno != 0) perror("recv");
             return -1;
         }
         cnt += ret;
     }
-    return 0;
+    return cnt;
 }
 
 int client_handler()
@@ -81,12 +85,15 @@ int client_handler()
             continue;
         }
         msg.length = ntohs(msg.length);
+        debug(stderr, "## message arrived ##\n");
         debug_msg(&msg);
-        for (i=0; valid_commands[i].type; i++) {
+        debug(stderr, "#####################\n");
+        for (i=0; valid_commands[i].type; ) {
             if (msg.type==valid_commands[i].type && msg.code==valid_commands[i].code) {
                 (*valid_commands[i].func)(&msg);
                 break;
             }
+            i++;
         }
         if (!valid_commands[i].type) {
             fprintf(stderr, "## undefined command, ignoring ##\n");
@@ -178,7 +185,7 @@ int pwd(ftp_message_t *msg)
 {
     char path[PATH_MAX];
 
-    fprintf(stderr, "## pwd command ##\n");
+    debug(stderr, "## pwd command ##\n");
 
     if (msg->length != 0) {
         recv_msg(NULL, msg->length) ;
@@ -197,7 +204,7 @@ int pwd(ftp_message_t *msg)
 int cd(ftp_message_t *msg)
 {
     char path[PATH_MAX];
-    fprintf(stderr, "## cd command ##\n");
+    debug(stderr, "## cd command ##\n");
     
     if (msg->length == 0) {
         if (send_msg(&sfd_client, TYPE_ERR_CMD, CMD_ERR_SYNTAX, 0, NULL) < 0) return -1;
@@ -244,7 +251,6 @@ int print_dir(struct stat *st, char *name)
     if (snprintf(str_buf, BUF_LEN, "%12zd %s %s", st->st_size, timestr, name) > BUF_LEN) {
         return -1;
     }
-    //fprintf(stderr, "%s", str_buf);
     if (send_data(strlen(str_buf), str_buf) < 0) return -1;
     return 0;
 }
@@ -272,10 +278,57 @@ int dir(ftp_message_t *msg)
         search_path[msg->length] = '\0';
     }
     ret = list_dir(search_path);
-    send_msg(&sfd_client, TYPE_DATA, CMD_DATA_LAST, 0, NULL);
+    if (send_msg(&sfd_client, TYPE_DATA, CMD_DATA_LAST, 0, NULL) < 0) return -1;
     return ret;
 }
 
-int ftpget(ftp_message_t *msg) {}
-int ftpput(ftp_message_t *msg) {}
+void recv_err(ftp_message_t *reply) {}
+
 int quit(ftp_message_t *msg) {sigterm_flag = 1;}
+
+int ftpget(ftp_message_t *msg)
+{
+    debug(stderr, "## get command ##\n");
+    int fd;
+    char src[PATH_MAX];
+    if (msg->length == 0) {
+        if (send_msg(&sfd_client, TYPE_ERR_CMD, CMD_ERR_SYNTAX, 0, NULL) < 0) return -1;
+        return 0;
+    }
+    if (recv_msg(src, msg->length) < 0) return -1;
+    src[msg->length] = '\0';
+    if((fd = open(src, O_RDONLY)) < 0) {
+        perror("open");
+        file_err(errno);
+        return -1;
+    }
+    if (send_file(&sfd_client, &fd) < 0) {
+        file_err(errno);
+        return -1;
+    }
+    if (send_msg(&sfd_client, TYPE_DATA, CMD_DATA_LAST, 0, NULL) < 0) return -1;
+    close(fd);
+    return 0;
+}
+
+int ftpput(ftp_message_t *msg)
+{
+    debug(stderr, "## put command ##\n");
+    int fd;
+    char dst[PATH_MAX];
+    if (msg->length == 0) {
+        if (send_msg(&sfd_client, TYPE_ERR_CMD, CMD_ERR_SYNTAX, 0, NULL) < 0) return -1;
+        return 0;
+    }
+    if (recv_msg(dst, msg->length) < 0) return -1;
+    dst[msg->length] = '\0';
+    if((fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0) {
+        perror("open");
+        file_err(errno);
+        return -1;
+    }
+    if (send_msg(&sfd_client, TYPE_OK, CMD_OK_STOR, 0, NULL) < 0) return -1;
+    recv_file(&sfd, &fd);
+    close(fd);
+
+}

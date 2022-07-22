@@ -22,7 +22,6 @@ void sigchld_handler(int);
 void sigint_handler(int);
 void sigterm_handler(int);
 void kill_children();
-int send_data(uint16_t, uint8_t *);
 int pwd(ftp_message_t *);
 int cd(ftp_message_t *);
 int dir(ftp_message_t *);

@@ -45,13 +45,13 @@ int recv_msg(void *msg, int len)
             fprintf(stderr, "## timeout ##\n");
             return -1;
         }
-        if ((ret=recv(sfd, msg, len-cnt, 0)) <= 0) {
+        if ((ret=recv(sfd, &(((char *)msg)[cnt]), len-cnt, 0)) <= 0) {
             if (errno != 0) perror("recv");
             return -1;
         }
         cnt += ret;
     }
-    return 0;
+    return cnt;
 }
 
 int exec_command()
@@ -137,7 +137,9 @@ int pwd(int *argc, char *argv[])
     if (send_msg(&sfd, TYPE_PWD, CMD_OK, 0, NULL) < 0) return -1;
     if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
     reply.length = ntohs(reply.length);
+    debug(stderr, "## message arrived ##\n");
     debug_msg(&reply);
+    debug(stderr, "#####################\n");
     if (reply.type==TYPE_OK && reply.code==CMD_OK) {
         if (reply.length > 0) {
             uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply.length+1));
@@ -164,7 +166,9 @@ int cd(int *argc, char *argv[])
     if (send_msg(&sfd, TYPE_CWD, CMD_OK, strlen(argv[1]), argv[1]) < 0) return -1;
     if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
     reply.length = ntohs(reply.length);
+    debug(stderr, "## message arrived ##\n");
     debug_msg(&reply);
+    debug(stderr, "#####################\n");
     if (reply.type==TYPE_OK && reply.code==CMD_OK) {
         fprintf(stderr, "## cd succeeded ##\n");
     } else {
@@ -192,6 +196,7 @@ int dir(int *argc, char *argv[])
     }
     if (send_msg(&sfd, TYPE_LIST, CMD_OK, strlen(search_path), search_path) < 0) return -1;
     if (recv_msg(&reply, HEADER_SIZE) < 0) return -1;
+    reply.length = ntohs(reply.length);
     if (reply.type==TYPE_OK && reply.code==CMD_OK_RETR) {
         if (reply.length > 0) {
             uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * (reply.length+1));
@@ -201,7 +206,10 @@ int dir(int *argc, char *argv[])
             free(data);
         }
     } else {
+        debug(stderr, "## message arrived ##\n");
         recv_err(&reply);
+        debug_msg(&reply);
+        debug(stderr, "#####################\n");
         return -1;
     }
     
@@ -274,11 +282,6 @@ int ldir(int *argc, char *argv[])
     return list_dir(search_path);
 }
 
-int ftpget(int *argc, char *argv[])
-{}
-int ftpput(int *argc, char *argv[])
-{}
-
 int sock_conf(char *addrstr)
 {
     int ret;
@@ -308,4 +311,110 @@ int sock_conf(char *addrstr)
 }
 
 void recv_err(ftp_message_t *reply)
-{}
+{
+    int i;
+    for (i=0; valid_errs[i].type!=0; i++) {
+        if (reply->type==valid_errs[i].type && reply->code==valid_errs[i].code) {
+            fprintf(stderr, "## %s ##\n", valid_errs[i].descr);
+            break;
+        }
+    }
+    if (!valid_errs[i].type) {
+        fprintf(stderr, "## unexpected reply, ignoring ##\n");
+    }
+}
+
+int send_data(uint16_t length, uint8_t *data)
+{
+    if (first_data) {
+        first_data = 0;
+    }
+    return send_msg(&sfd, TYPE_DATA, CMD_DATA, length, data);
+}
+
+int ftpget(int *argc, char *argv[])
+{
+    char dst[PATH_MAX];
+    char src[PATH_MAX];
+    if (*argc == 2) {
+        if (snprintf(dst, PATH_MAX, "%s", argv[1]) > PATH_MAX) {
+            fprintf(stderr, "## given arg is too long ##\n");
+            return -1;
+        }
+    } else if (*argc == 3) {
+        if (snprintf(dst, PATH_MAX, "%s", argv[2]) > PATH_MAX) {
+            fprintf(stderr, "## given arg is too long ##\n");
+            return -1;
+        }
+    } else if (*argc < 2 || 3 < *argc) {
+        fprintf(stderr, "get need 1 to 2 args\n");
+        return -1;
+    }
+    if (snprintf(src, PATH_MAX, "%s", argv[1]) > PATH_MAX) {
+        fprintf(stderr, "## given arg is too long ##\n");
+        return -1;
+    }
+
+    int fd;
+    if((fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0) {
+        perror("open");
+        return -1;
+    }
+
+    ftp_message_t reply;
+    if (send_msg(&sfd, TYPE_RETR, CMD_OK, strlen(src), src) < 0) { close(fd); return -1; }
+    if (recv_msg(&reply, HEADER_SIZE) < 0) { close(fd); return -1; }
+    reply.length = ntohs(reply.length);
+    if (!(reply.type==TYPE_OK && reply.code==CMD_OK_RETR)) {
+        recv_err(&reply);
+        close(fd);
+        return -1;
+    }
+
+    recv_file(&sfd, &fd);
+    close(fd);
+}
+
+int ftpput(int *argc, char *argv[])
+{
+    char dst[PATH_MAX];
+    char src[PATH_MAX];
+    if (*argc == 2) {
+        if (snprintf(dst, PATH_MAX, "%s", argv[1]) > PATH_MAX) {
+            fprintf(stderr, "## given arg is too long ##\n");
+            return -1;
+        }
+    } else if (*argc == 3) {
+        if (snprintf(dst, PATH_MAX, "%s", argv[2]) > PATH_MAX) {
+            fprintf(stderr, "## given arg is too long ##\n");
+            return -1;
+        }
+    } else if (*argc < 2 || 3 < *argc) {
+        fprintf(stderr, "get need 1 to 2 args\n");
+        return -1;
+    }
+    if (snprintf(src, PATH_MAX, "%s", argv[1]) > PATH_MAX) {
+        fprintf(stderr, "## given arg is too long ##\n");
+        return -1;
+    }
+
+    int fd;
+    if((fd = open(src, O_RDONLY)) < 0) { perror("open"); return -1; }
+
+    ftp_message_t reply;
+    if (send_msg(&sfd, TYPE_STOR, CMD_OK, strlen(dst), dst) < 0) { close(fd); return -1; }
+    if (recv_msg(&reply, HEADER_SIZE) < 0) { close(fd); return -1; }
+    reply.length = ntohs(reply.length);
+    if (!(reply.type==TYPE_OK && reply.code==CMD_OK_STOR)) {
+        recv_err(&reply);
+        close(fd);
+        return -1;
+    }
+    if (send_file(&sfd, &fd) < 0) {
+        file_err(errno);
+        return -1;
+    }
+    if (send_msg(&sfd, TYPE_DATA, CMD_DATA_LAST, 0, NULL) < 0) return -1;
+    close(fd);
+    return 0;
+}

@@ -32,7 +32,6 @@ int help(int*, char *[]);
 int getargs(int*, char *[], char*);
 int exec_command();
 int sock_conf();
-void recv_err(ftp_message_t *);
 
 struct command_table_t {
     char *cmd;
@@ -53,20 +52,21 @@ struct command_table_t {
     {NULL, NULL, NULL}
 };
 
-/**
-valid_message_t valid_replies[] = {
-    {TYPE_OK, CMD_OK},
-    {TYPE_OK, CMD_DATA_RETR},
-    {TYPE_OK, CMD_DATA_STOR},
-    {TYPE_ERR_CMD, CMD_ERR_SYNTAX},
-    {TYPE_ERR_CMD, CMD_ERR_UNDEF},
-    {TYPE_ERR_CMD, CMD_ERR_PRTCL},
-    {TYPE_ERR_FILE, CMD_ERR_NEGATION},
-    {TYPE_ERR_FILE, CMD_ERR_PERMISSION},
-    {TYPE_ERR_UNKWN, CMD_ERR_UNKWN},
-    {0, 0}
+typedef struct _vmsg {
+    int type;
+    int code;
+    char *descr;
+} valid_message_t;
+
+valid_message_t valid_errs[] = {
+    {TYPE_ERR_CMD, CMD_ERR_SYNTAX, "syntax error on packet"},
+    {TYPE_ERR_CMD, CMD_ERR_UNDEF, "undefined command"},
+    {TYPE_ERR_CMD, CMD_ERR_PRTCL, "protocol error"},
+    {TYPE_ERR_FILE, CMD_ERR_NEGATION, "file not exist"},
+    {TYPE_ERR_FILE, CMD_ERR_PERMISSION, "permission denied"},
+    {TYPE_ERR_UNKWN, CMD_ERR_UNKWN, "unknown error"},
+    {0, 0, NULL}
 };
-**/
 
 int sfd;
 
